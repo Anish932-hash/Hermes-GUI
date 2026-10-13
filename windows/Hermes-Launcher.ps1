@@ -43,17 +43,27 @@ Write-Host @"
 
 "@ -ForegroundColor Cyan
 
-$distro = "kali-linux"
+$distro = if ($env:HERMES_WSL_DISTRO) { $env:HERMES_WSL_DISTRO } else { "kali-linux" }
+$wslUser = $env:HERMES_WSL_USER
+if (-not $wslUser) {
+    $wslUser = (wsl.exe -d $distro -e whoami 2>$null | Select-Object -First 1).Trim()
+}
+if (-not $wslUser) { $wslUser = "thecyberexpert" }
+$wslHome = $env:HERMES_WSL_HOME
+if (-not $wslHome) {
+    $wslHome = (wsl.exe -d $distro -u $wslUser -e sh -lc 'printf %s "$HOME"' 2>$null | Select-Object -First 1).Trim()
+}
+if (-not $wslHome) { $wslHome = "/home/$wslUser" }
 $studioUrl = "http://localhost:3001"
 $godseyeUrl = "http://localhost:4173"
-$manageScript = "/home/thecyberexpert/.gemini/antigravity/scratch/studio/scripts/manage-services.sh"
+$manageScript = if ($env:HERMES_MANAGE_SCRIPT) { $env:HERMES_MANAGE_SCRIPT } else { "$wslHome/.gemini/antigravity/scratch/studio/scripts/manage-services.sh" }
 
 Write-Host "[PHASE 1] AUTONOMOUS SUBSYSTEM DETECTION & PROVISIONING" -ForegroundColor White
 Write-Host "─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
 
 # 1. Check WSL2 Kali
 Write-Host " [+] Probing WSL2 Kali Linux Subsystem... " -NoNewline -ForegroundColor Yellow
-$wslCheck = wsl.exe -d $distro -u thecyberexpert -e uname -s 2>$null
+$wslCheck = wsl.exe -d $distro -u $wslUser -e uname -s 2>$null
 if ($wslCheck -match "Linux") {
     Write-Host "[ONLINE: WSL2 KALI READY]" -ForegroundColor Green
 } else {
@@ -64,11 +74,11 @@ if ($wslCheck -match "Linux") {
 # 2. Start services inside WSL Kali (Hidden execution)
 if ($Restart) {
     Write-Host " [*] Restarting all services... " -NoNewline -ForegroundColor Yellow
-    Start-Process "wsl.exe" -ArgumentList "-d $distro -u thecyberexpert bash -c `"$manageScript restart`"" -WindowStyle Hidden -Wait
+    Start-Process "wsl.exe" -ArgumentList "-d $distro -u $wslUser bash -c `"$manageScript restart`"" -WindowStyle Hidden -Wait
     Write-Host "[RESTARTED]" -ForegroundColor Green
 } else {
     Write-Host " [*] Auto-Provisioning Services (Studio, God's Eye, Gateway)... " -NoNewline -ForegroundColor Yellow
-    Start-Process "wsl.exe" -ArgumentList "-d $distro -u thecyberexpert bash -c `"$manageScript start`"" -WindowStyle Hidden -Wait
+    Start-Process "wsl.exe" -ArgumentList "-d $distro -u $wslUser bash -c `"$manageScript start`"" -WindowStyle Hidden -Wait
     Write-Host "[DAEMONS ACTIVE]" -ForegroundColor Green
 }
 
@@ -93,7 +103,7 @@ Write-Host "[VERIFIED: 100% HEALTH]" -ForegroundColor Green
 # 4. Deep Auto-Setup Handshake
 if ($Diagnostics) {
     Write-Host " [*] Executing Deep Auto-Setup & Self-Healing Handshake... " -NoNewline -ForegroundColor Yellow
-    wsl.exe -d $distro -u thecyberexpert curl -s -X POST "$studioUrl/api/system/auto-setup" | Out-Null
+    wsl.exe -d $distro -u $wslUser curl -s -X POST "$studioUrl/api/system/auto-setup" | Out-Null
     Write-Host "[COMPLETED]" -ForegroundColor Green
 }
 
@@ -105,10 +115,10 @@ if ($WithTerminal) {
     Write-Host " [+] Launching WSL Kali Interactive Terminal Session... " -NoNewline -ForegroundColor Yellow
     $wtPath = "$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe"
     if (Test-Path $wtPath) {
-        Start-Process $wtPath -ArgumentList "wsl.exe -d $distro -u thecyberexpert ~"
+        Start-Process $wtPath -ArgumentList "wsl.exe -d $distro -u $wslUser ~"
         Write-Host "[WINDOWS TERMINAL]" -ForegroundColor Green
     } else {
-        Start-Process "cmd.exe" -ArgumentList "/c start `"Kali Linux - Hermes Agent OS`" wsl.exe -d $distro -u thecyberexpert ~"
+        Start-Process "cmd.exe" -ArgumentList "/c start `"Kali Linux - Hermes Agent OS`" wsl.exe -d $distro -u $wslUser ~"
         Write-Host "[WSL CONSOLE]" -ForegroundColor Green
     }
 } else {
