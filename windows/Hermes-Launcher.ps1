@@ -44,11 +44,7 @@ Write-Host @"
 "@ -ForegroundColor Cyan
 
 $distro = if ($env:HERMES_WSL_DISTRO) { $env:HERMES_WSL_DISTRO } else { "kali-linux" }
-$wslUser = $env:HERMES_WSL_USER
-if (-not $wslUser) {
-    $wslUser = (wsl.exe -d $distro -e whoami 2>$null | Select-Object -First 1).Trim()
-}
-if (-not $wslUser) { $wslUser = "thecyberexpert" }
+$wslUser = if ($env:HERMES_WSL_USER) { $env:HERMES_WSL_USER } else { "thecyberexpert" }
 $wslHome = $env:HERMES_WSL_HOME
 if (-not $wslHome) {
     $wslHome = (wsl.exe -d $distro -u $wslUser -e sh -lc 'printf %s "$HOME"' 2>$null | Select-Object -First 1).Trim()
