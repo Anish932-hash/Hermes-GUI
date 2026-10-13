@@ -67,23 +67,19 @@ export async function GET(req: Request) {
     });
   }
 
-  const appInstalled =
-    fs.existsSync('/mnt/c/Users/anish/Hermes-Agent-OS/Hermes-Agent-OS.exe') ||
-    fs.existsSync('/mnt/c/Users/anish/Hermes-Agent-OS/node_modules/electron/dist/electron.exe');
-
   const telemetry: WindowsTelemetry = {
     isWsl: fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop') || fs.existsSync('/mnt/c'),
-    windowsUser: 'anish',
+    windowsUser: process.env.USERNAME || 'unknown',
     hasWindowsTerminal: false,
     installedBrowsers: [],
-    distroName: 'kali-linux',
-    isStandaloneAppInstalled: appInstalled,
+    distroName: process.env.HERMES_WSL_DISTRO || 'kali-linux',
+    isStandaloneAppInstalled: false,
     isStandaloneAppRunning: false,
   };
 
   try {
     // Single consolidated hidden batch query for zero window flashing and fast response
-    const batchCmd = `$u = $env:USERNAME; $w = if (Get-Command wt.exe -ErrorAction SilentlyContinue) { (Get-Command wt.exe).Source } else { '' }; $e = if (Get-Process electron -ErrorAction SilentlyContinue) { 'RUNNING' } else { 'STOPPED' }; @{ user = $u; wt = $w; electron = $e } | ConvertTo-Json -Compress`;
+    const batchCmd = `$u = $env:USERNAME; $w = if (Get-Command wt.exe -ErrorAction SilentlyContinue) { (Get-Command wt.exe).Source } else { '' }; $e = if (Get-Process electron -ErrorAction SilentlyContinue) { 'RUNNING' } else { 'STOPPED' }; $root = Join-Path $env:USERPROFILE 'Hermes-Agent-OS'; $a = (Test-Path (Join-Path $root 'Hermes-Agent-OS.exe')) -or (Test-Path (Join-Path $root 'node_modules\\electron\\dist\\electron.exe')); @{ user = $u; wt = $w; electron = $e; appInstalled = $a } | ConvertTo-Json -Compress`;
     const rawJson = await execOnWindows(batchCmd);
     if (rawJson) {
       try {
@@ -94,10 +90,11 @@ export async function GET(req: Request) {
           telemetry.windowsTerminalPath = String(parsed.wt).split('\n')[0].trim();
         }
         telemetry.isStandaloneAppRunning = parsed.electron === 'RUNNING';
+        telemetry.isStandaloneAppInstalled = parsed.appInstalled === true;
       } catch {}
     }
   } catch {
-    telemetry.windowsUser = 'anish';
+    telemetry.windowsUser = process.env.USERNAME || 'unknown';
   }
 
   // Probe installed browsers
