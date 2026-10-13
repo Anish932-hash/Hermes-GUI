@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { HERMES_PATH } from '@/lib/hermes';
 import { isLocalRequest } from '@/lib/local-request';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Allowed command list prefixes or safe commands to run in WSL
 const SAFE_PREFIXES = [
@@ -37,11 +37,47 @@ const SAFE_PREFIXES = [
   'git branch --show-current',
 ];
 
-function isAllowedCommand(command: string): boolean {
-  // This endpoint invokes a shell for the interactive terminal. Do not allow
-  // shell composition, substitutions, redirection, or newlines.
-  if (/[;&|<>`$()\n\r]/.test(command)) return false;
-  return SAFE_PREFIXES.some((prefix) => command === prefix || command.startsWith(`${prefix} `));
+function parseCommand(command: string): string[] | null {
+  // Reject shell operators and execute the parsed arguments directly with execFile.
+  if (/[;&|<>\x60$()\n\r]/.test(command)) return null;
+
+  const args: string[] = [];
+  let token = '';
+  let quote: "'" | '"' | null = null;
+  let started = false;
+
+  for (const char of command) {
+    if (quote) {
+      if (char === quote) quote = null;
+      else token += char;
+      started = true;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      started = true;
+    } else if (/\s/.test(char)) {
+      if (started) {
+        args.push(token);
+        token = '';
+        started = false;
+      }
+    } else {
+      token += char;
+      started = true;
+    }
+  }
+
+  if (quote) return null;
+  if (started) args.push(token);
+  return args.length ? args : null;
+}
+
+function isAllowedCommand(args: string[]): boolean {
+  return SAFE_PREFIXES.some((prefix) => {
+    const expected = prefix.split(' ');
+    return expected.every((part, index) => args[index] === part);
+  });
 }
 
 export async function POST(req: Request) {
@@ -84,7 +120,8 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!isAllowedCommand(trimmed)) {
+    const args = parseCommand(trimmed);
+    if (!args || !isAllowedCommand(args)) {
       return NextResponse.json(
         {
           stdout: '',
@@ -95,7 +132,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { stdout, stderr } = await execAsync(trimmed, {
+    const { stdout, stderr } = await execFileAsync(args[0], args.slice(1), {
       env: {
         ...process.env,
         PATH: HERMES_PATH,
