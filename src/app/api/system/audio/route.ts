@@ -3,8 +3,9 @@ import { spawn, exec } from 'child_process';
 import fs from 'fs';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
 import { isLocalRequest } from '@/lib/local-request';
+
+const execAsync = promisify(exec);
 
 export const dynamic = 'force-dynamic';
 
