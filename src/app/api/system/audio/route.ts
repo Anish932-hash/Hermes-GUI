@@ -4,6 +4,8 @@ import fs from 'fs';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
+import { isLocalRequest } from '@/lib/local-request';
+
 export const dynamic = 'force-dynamic';
 
 const PULSE_SERVER = '/mnt/wslg/PulseServer';
@@ -172,7 +174,13 @@ function samplePulseAudio(timeoutMs = 90): Promise<WslAudioSample> {
   });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const sample = await samplePulseAudio(90);
     return NextResponse.json(sample);
@@ -193,6 +201,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'test_tone';
