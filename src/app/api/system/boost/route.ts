@@ -9,9 +9,6 @@ export async function POST(req: Request) {
   if (!isLocalRequest(req)) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
-  if (!isLocalRequest(req)) {
-    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
-  }
   try {
     const result = await performSystemBoost();
     return NextResponse.json({
