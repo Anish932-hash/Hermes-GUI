@@ -9,7 +9,7 @@ export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:$PATH"
 
 # Bind only to the WSL2 eth0 address instead of every interface. The Windows
 # Electron bridge connects to this address; loopback-only binding would break it.
-BIND_HOST="${HERMES_BIND_HOST:-$(ip -4 addr show eth0 2>/dev/null | awk '/inet / { sub(/\/.*/, \"\", $2); print $2; exit }')}"
+BIND_HOST="${HERMES_BIND_HOST:-$(ip -4 addr show eth0 2>/dev/null | awk '/inet / { print $2; exit }' | cut -d/ -f1)}"
 if [[ ! "${BIND_HOST}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
   echo "[-] Could not determine WSL2 eth0 IPv4 address; refusing to bind services to all interfaces."
   exit 1
@@ -29,7 +29,7 @@ is_port_listening() {
 
 start_studio() {
   if is_port_listening 3001; then
-    echo "[ONLINE] Next.js Studio is already running on http://127.0.0.1:3001"
+    echo "[ONLINE] Next.js Studio is already running on http://${BIND_HOST}:3001"
   else
     echo "[*] Starting Next.js Studio on ${BIND_HOST}:3001 (WSL interface only)..."
     tmux kill-session -t hermes-studio 2>/dev/null || true
@@ -54,7 +54,7 @@ start_studio() {
 
 start_godseye() {
   if is_port_listening 4173; then
-    echo "[ONLINE] God's Eye Cesium Viewer is already running on http://127.0.0.1:4173"
+    echo "[ONLINE] God's Eye Cesium Viewer is already running on http://${BIND_HOST}:4173"
   else
     echo "[*] Starting God's Eye Cesium Viewer on ${BIND_HOST}:4173 (WSL interface only)..."
     if [ -d "${GODSEYE_DIR}" ]; then
