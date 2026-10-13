@@ -38,7 +38,7 @@ start_studio() {
     if [ -d ".next" ]; then
       tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 npx next start -H '${BIND_HOST}' -p 3001 > '${RUN_DIR}/studio.log' 2>&1"
     else
-      tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 npm run dev > '${RUN_DIR}/studio.log' 2>&1"
+      tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 npx next dev -H '${BIND_HOST}' -p 3001 --turbopack > '${RUN_DIR}/studio.log' 2>&1"
     fi
 
     # Fallback to direct nohup daemon if tmux is unavailable
