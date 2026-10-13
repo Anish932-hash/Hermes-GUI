@@ -6,6 +6,8 @@ const execAsync = promisify(exec);
 
 import { isLocalRequest } from '@/lib/local-request';
 
+const LOCAL_BIND_HOST = process.env.HERMES_BIND_HOST || '127.0.0.1';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -16,7 +18,7 @@ export async function GET(req: NextRequest) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
 
-    const res = await fetch('http://localhost:4173/', {
+    const res = await fetch(`http://${LOCAL_BIND_HOST}:4173/`, {
       signal: controller.signal,
       headers: { Accept: 'text/html' },
     });
