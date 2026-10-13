@@ -12,7 +12,16 @@ let studioBridge = null;
 let godseyeBridge = null;
 
 const DISTRO = process.env.HERMES_WSL_DISTRO || 'kali-linux';
-const WSL_USER = process.env.HERMES_WSL_USER || 'thecyberexpert';
+const WSL_USER = process.env.HERMES_WSL_USER || (() => {
+  try {
+    return execFileSync('wsl.exe', ['-d', DISTRO, '-e', 'whoami'], {
+      timeout: 3500,
+      windowsHide: true,
+    }).toString().trim() || 'thecyberexpert';
+  } catch {
+    return 'thecyberexpert';
+  }
+})();
 const WSL_HOME = process.env.HERMES_WSL_HOME || `/home/${WSL_USER}`;
 const STUDIO_PORT = 3001;
 const STUDIO_URL = 'http://127.0.0.1:3001';
