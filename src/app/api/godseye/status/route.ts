@@ -4,9 +4,14 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+import { isLocalRequest } from '@/lib/local-request';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
