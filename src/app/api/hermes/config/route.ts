@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { HERMES_HOME, execAsync } from '@/lib/hermes';
+import { isLocalRequest } from '@/lib/local-request';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
   try {
     const configPath = path.join(HERMES_HOME, 'config.yaml');
     const soulPath = path.join(HERMES_HOME, 'SOUL.md');
@@ -130,6 +135,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const configPath = path.join(HERMES_HOME, 'config.yaml');
