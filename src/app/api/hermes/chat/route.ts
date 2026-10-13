@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeHermesChat } from '@/lib/hermes';
 
+import { isLocalRequest } from '@/lib/local-request';
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const { message, sessionId, model, provider, enableTools } = body;
