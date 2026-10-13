@@ -6,9 +6,14 @@ import {
   triggerWisprPtt,
 } from '@/lib/wispr-flow';
 
+import { isLocalRequest } from '@/lib/local-request';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '15', 10);
@@ -35,6 +40,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'status';
