@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { HERMES_PATH } from '@/lib/hermes';
+import { isLocalRequest } from '@/lib/local-request';
 
 const execAsync = promisify(exec);
 
@@ -44,6 +45,10 @@ function isAllowedCommand(command: string): boolean {
 }
 
 export async function POST(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
   try {
     const { command } = await req.json();
     if (!command || typeof command !== 'string') {
