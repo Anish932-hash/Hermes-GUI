@@ -54,8 +54,11 @@ if (-not $wslHome) {
     $wslHome = (wsl.exe -d $distro -u $wslUser -e sh -lc 'printf %s "$HOME"' 2>$null | Select-Object -First 1).Trim()
 }
 if (-not $wslHome) { $wslHome = "/home/$wslUser" }
+$wslIp = ((wsl.exe -d $distro -u $wslUser -e hostname -I 2>$null) -split "\s+")[0]
 $studioUrl = "http://localhost:3001"
+$studioProbeUrl = if ($wslIp) { "http://${wslIp}:3001" } else { $studioUrl }
 $godseyeUrl = "http://localhost:4173"
+$godseyeProbeUrl = if ($wslIp) { "http://${wslIp}:4173" } else { $godseyeUrl }
 $manageScript = if ($env:HERMES_MANAGE_SCRIPT) { $env:HERMES_MANAGE_SCRIPT } else { "$wslHome/.gemini/antigravity/scratch/studio/scripts/manage-services.sh" }
 
 Write-Host "[PHASE 1] AUTONOMOUS SUBSYSTEM DETECTION & PROVISIONING" -ForegroundColor White
@@ -88,8 +91,8 @@ $retries = 25
 $allUp = $false
 while ($retries-- -gt 0 -and -not $allUp) {
     try {
-        $r1 = Invoke-WebRequest -Uri $studioUrl -Method Head -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
-        $r2 = Invoke-WebRequest -Uri $godseyeUrl -Method Head -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+        $r1 = Invoke-WebRequest -Uri $studioProbeUrl -Method Head -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+        $r2 = Invoke-WebRequest -Uri $godseyeProbeUrl -Method Head -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
         if ($r1.StatusCode -eq 200 -and $r2.StatusCode -eq 200) {
             $allUp = $true
             break
@@ -103,7 +106,7 @@ Write-Host "[VERIFIED: 100% HEALTH]" -ForegroundColor Green
 # 4. Deep Auto-Setup Handshake
 if ($Diagnostics) {
     Write-Host " [*] Executing Deep Auto-Setup & Self-Healing Handshake... " -NoNewline -ForegroundColor Yellow
-    wsl.exe -d $distro -u $wslUser curl -s -X POST "$studioUrl/api/system/auto-setup" | Out-Null
+    wsl.exe -d $distro -u $wslUser -e bash -lc "curl -s -H 'Host: localhost:3001' -X POST http://${wslIp}:3001/api/system/auto-setup" | Out-Null
     Write-Host "[COMPLETED]" -ForegroundColor Green
 }
 
@@ -128,14 +131,14 @@ if ($WithTerminal) {
 # 6. Launch Standalone Independent Windows Desktop Application
 if (-not $NoBrowser) {
     Write-Host " [+] Spawning Hermes GUI in Dedicated Application Window... " -NoNewline -ForegroundColor Yellow
-    $appExe = "C:\Users\anish\Hermes-Agent-OS\Hermes-Agent-OS.exe"
-    $electronExe = "C:\Users\anish\Hermes-Agent-OS\node_modules\electron\dist\electron.exe"
+    $appExe = Join-Path $PSScriptRoot "Hermes-Agent-OS.exe"
+    $electronExe = Join-Path $PSScriptRoot "node_modules\electron\dist\electron.exe"
 
     if (Test-Path $appExe) {
-        Start-Process $appExe -WorkingDirectory "C:\Users\anish\Hermes-Agent-OS" -WindowStyle Hidden
+        Start-Process $appExe -WorkingDirectory $PSScriptRoot -WindowStyle Hidden
         Write-Host "[STANDALONE WINDOWS APP]" -ForegroundColor Green
     } elseif (Test-Path $electronExe) {
-        Start-Process $electronExe -ArgumentList "." -WorkingDirectory "C:\Users\anish\Hermes-Agent-OS" -WindowStyle Hidden
+        Start-Process $electronExe -ArgumentList "." -WorkingDirectory $PSScriptRoot -WindowStyle Hidden
         Write-Host "[NATIVE ELECTRON COCKPIT]" -ForegroundColor Green
     } else {
         $browserPaths = @(
