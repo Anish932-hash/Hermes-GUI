@@ -3,6 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { isLocalRequest } from '@/lib/local-request';
 
 const execAsync = promisify(exec);
 
@@ -309,7 +310,11 @@ async function detectAllSubsystems(): Promise<{
 /**
  * GET: Return live diagnostic probe
  */
-export async function GET() {
+export async function GET(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
   try {
     const diagnostics = await detectAllSubsystems();
     return NextResponse.json(diagnostics);
@@ -325,6 +330,10 @@ export async function GET() {
  * POST: Execute Autonomous Auto-Setup & Self-Healing
  */
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
   const actions: Array<{ step: string; status: 'SUCCESS' | 'SKIPPED' | 'WARNING'; message: string }> = [];
 
   try {
