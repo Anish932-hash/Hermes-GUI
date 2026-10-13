@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 import { isLocalRequest } from '@/lib/local-request';
 
 export const dynamic = 'force-dynamic';
@@ -27,29 +30,23 @@ let lastTelemetryTime = 0;
  * Uses -WindowStyle Hidden and -NonInteractive to guarantee NO console popups on Windows desktop
  */
 async function execOnWindows(psCommand: string): Promise<string> {
-  const { stdout } = await execAsync(
-    `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "${psCommand.replace(/"/g, '`"')}" < /dev/null`,
-    {
-      cwd: '/mnt/c',
-      timeout: 8000,
-      windowsHide: true,
-    }
+  const { stdout } = await execFileAsync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', psCommand],
+    { cwd: '/mnt/c', timeout: 8000, windowsHide: true, maxBuffer: 1024 * 512 }
   );
   return stdout.trim();
 }
 
 /**
- * Launch detached background process on Windows host via powershell.exe Start-Process
- * 100% hidden runtime
+ * Launch a fixed PowerShell command without passing it through a shell parser.
+ * Any user-supplied values must still be validated and quoted for PowerShell.
  */
 async function launchOnWindows(psCommand: string): Promise<void> {
-  await execAsync(
-    `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "${psCommand.replace(/"/g, '`"')}" < /dev/null`,
-    {
-      cwd: '/mnt/c',
-      timeout: 8000,
-      windowsHide: true,
-    }
+  await execFileAsync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', psCommand],
+    { cwd: '/mnt/c', timeout: 8000, windowsHide: true, maxBuffer: 1024 * 512 }
   );
 }
 
@@ -172,13 +169,20 @@ export async function POST(req: NextRequest) {
       }
 
       case 'open-explorer': {
-        const targetPath = body.path || 'C:\\Users\\anish\\Hermes-Agent-OS';
-        const psCmd = `Start-Process explorer.exe -ArgumentList '${targetPath}'`;
+        const requestedPath = typeof body.path === 'string' ? body.path.trim() : '';
+        if (requestedPath.length > 1024 || /[\\u0000-\\u001f]/.test(requestedPath)) {
+          return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+        }
+        const targetPath = requestedPath || '';
+        const psLiteral = targetPath.replace(/'/g, "''");
+        const psCmd = targetPath
+          ? `Start-Process explorer.exe -ArgumentList ([char]34 + '${psLiteral}' + [char]34)`
+          : "Start-Process explorer.exe -ArgumentList ([char]34 + $env:USERPROFILE + [char]34)";
         await launchOnWindows(psCmd);
         return NextResponse.json({
           success: true,
           action,
-          message: `Opened Windows File Explorer at ${targetPath}.`,
+          message: targetPath ? `Opened Windows File Explorer at ${targetPath}.` : 'Opened Windows File Explorer.',
         });
       }
 
@@ -195,7 +199,7 @@ export async function POST(req: NextRequest) {
 
       case 'launch-studio-app': {
         // Launch independent standalone desktop application (NO web browser)
-        const psCmd = "if (Test-Path 'C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe') { Start-Process 'C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe' -WorkingDirectory 'C:\\Users\\anish\\Hermes-Agent-OS' -WindowStyle Hidden } elseif (Test-Path 'C:\\Users\\anish\\Hermes-Agent-OS\\node_modules\\electron\\dist\\electron.exe') { Start-Process 'C:\\Users\\anish\\Hermes-Agent-OS\\node_modules\\electron\\dist\\electron.exe' -ArgumentList '.' -WorkingDirectory 'C:\\Users\\anish\\Hermes-Agent-OS' -WindowStyle Hidden } else { Start-Process 'http://127.0.0.1:3001' -WindowStyle Hidden }";
+        const psCmd = "$root = Join-Path $env:USERPROFILE 'Hermes-Agent-OS'; $app = Join-Path $root 'Hermes-Agent-OS.exe'; $electron = Join-Path $root 'node_modules\\electron\\dist\\electron.exe'; if (Test-Path $app) { Start-Process $app -WorkingDirectory $root -WindowStyle Hidden } elseif (Test-Path $electron) { Start-Process $electron -ArgumentList '.' -WorkingDirectory $root -WindowStyle Hidden } else { Start-Process 'http://127.0.0.1:3001' -WindowStyle Hidden }";
         await launchOnWindows(psCmd);
         return NextResponse.json({
           success: true,
@@ -205,8 +209,9 @@ export async function POST(req: NextRequest) {
       }
 
       case 'restart-daemons': {
-        const scriptPath = '/home/thecyberexpert/.gemini/antigravity/scratch/studio/scripts/manage-services.sh';
-        await execAsync(`bash ${scriptPath} restart`, { timeout: 25000 });
+        const scriptPath = process.env.HERMES_MANAGE_SCRIPT ||
+          path.join(os.homedir(), '.gemini', 'antigravity', 'scratch', 'studio', 'scripts', 'manage-services.sh');
+        await execFileAsync('bash', [scriptPath, 'restart'], { timeout: 25000, windowsHide: true });
         return NextResponse.json({
           success: true,
           action,
