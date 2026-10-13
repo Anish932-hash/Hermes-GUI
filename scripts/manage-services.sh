@@ -67,7 +67,7 @@ start_godseye() {
       sleep 1
       if ! tmux has-session -t hermes-godseye 2>/dev/null && ! is_port_listening 4173; then
         echo "[*] Tmux session absent; launching God's Eye Viewer via persistent nohup daemon..."
-        nohup bash -c "cd '${GODSEYE_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' npm run dev -- --host '${BIND_HOST}' --port 4173" > "${RUN_DIR}/godseye.log" 2>&1 &
+        nohup bash -c "cd '${GODSEYE_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' exec npm run dev -- --host '${BIND_HOST}' --port 4173" > "${RUN_DIR}/godseye.log" 2>&1 &
         echo $! > "${RUN_DIR}/godseye.pid"
       fi
       echo "[+] God's Eye Cesium initiated in persistent session."
