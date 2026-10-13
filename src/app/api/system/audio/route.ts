@@ -178,9 +178,6 @@ export async function GET(req: Request) {
   if (!isLocalRequest(req)) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
-  if (!isLocalRequest(req)) {
-    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
-  }
   try {
     const sample = await samplePulseAudio(90);
     return NextResponse.json(sample);
