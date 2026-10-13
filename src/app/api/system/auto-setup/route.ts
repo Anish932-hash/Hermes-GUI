@@ -3,6 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { isLocalRequest } from '@/lib/local-request';
 
 const execAsync = promisify(exec);
@@ -11,9 +12,9 @@ export const dynamic = 'force-dynamic';
 
 const LOCAL_BIND_HOST = process.env.HERMES_BIND_HOST || '127.0.0.1';
 
-const HERMES_HOME = '/home/thecyberexpert/.hermes';
-const GODSEYE_DIR = '/home/thecyberexpert/gods-eye-view';
-const STUDIO_DIR = '/home/thecyberexpert/.gemini/antigravity/scratch/studio';
+const HERMES_HOME = process.env.HERMES_HOME || path.join(os.homedir(), '.hermes');
+const GODSEYE_DIR = process.env.HERMES_GODSEYE_DIR || path.join(os.homedir(), 'gods-eye-view');
+const STUDIO_DIR = process.env.HERMES_STUDIO_DIR || path.join(os.homedir(), '.gemini', 'antigravity', 'scratch', 'studio');
 
 interface DiagnosticSubsystem {
   id: string;
@@ -231,7 +232,7 @@ async function detectAllSubsystems(): Promise<{
   // 6. PYTHON 3.14 & UV ISOLATION RUNTIME
   let pythonPath = '/usr/bin/python3';
   let pythonVersion = 'Python 3.14';
-  const customPython = '/home/thecyberexpert/.hermes/tools/python-3.14.7+20260901-linux-x64/bin/python3';
+  const customPython = path.join(HERMES_HOME, 'tools', 'python-3.14.7+20260901-linux-x64', 'bin', 'python3');
 
   if (fs.existsSync(customPython)) {
     pythonPath = customPython;
@@ -379,8 +380,8 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     if (!gatewayRunning) {
-      const pyBin = '/home/thecyberexpert/.hermes/tools/python-3.14.7+20260901-linux-x64/bin/python3';
-      const cliBin = '/home/thecyberexpert/.hermes/hermes-agent/hermes_cli/main.py';
+      const pyBin = path.join(HERMES_HOME, 'tools', 'python-3.14.7+20260901-linux-x64', 'bin', 'python3');
+      const cliBin = path.join(HERMES_HOME, 'hermes-agent', 'hermes_cli', 'main.py');
       if (fs.existsSync(pyBin) && fs.existsSync(cliBin)) {
         try {
           exec(`nohup "${pyBin}" "${cliBin}" gateway run > "${HERMES_HOME}/gateway-auto.log" 2>&1 &`, {
