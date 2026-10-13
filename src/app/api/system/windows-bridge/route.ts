@@ -4,6 +4,8 @@ import { promisify } from 'util';
 import fs from 'fs';
 
 const execAsync = promisify(exec);
+import { isLocalRequest } from '@/lib/local-request';
+
 export const dynamic = 'force-dynamic';
 
 interface WindowsTelemetry {
@@ -54,7 +56,10 @@ async function launchOnWindows(psCommand: string): Promise<void> {
 /**
  * GET: Query Windows Host Telemetry & Subsystems (Cached & 100% Hidden)
  */
-export async function GET() {
+export async function GET(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   const now = Date.now();
   if (cachedTelemetry && now - lastTelemetryTime < 15000) {
     return NextResponse.json({
@@ -125,6 +130,9 @@ export async function GET() {
  * POST: Execute Windows Host Action (100% Hidden)
  */
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const body = await req.json().catch(() => ({}));
     const action = body.action || '';
