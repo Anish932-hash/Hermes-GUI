@@ -9,9 +9,6 @@ export async function GET(req: Request) {
   if (!isLocalRequest(req)) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
-  if (!isLocalRequest(req)) {
-    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
-  }
   try {
     const logs = await getGatewayLogs(40);
     const status = await manageGateway('status');
