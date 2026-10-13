@@ -33,7 +33,6 @@ start_studio() {
   else
     echo "[*] Starting Next.js Studio on ${BIND_HOST}:3001 (WSL interface only)..."
     tmux kill-session -t hermes-studio 2>/dev/null || true
-    fuser -k 3001/tcp 2>/dev/null || true
     cd "${STUDIO_DIR}"
     if [ -d ".next" ]; then
       tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 npx next start -H '${BIND_HOST}' -p 3001 > '${RUN_DIR}/studio.log' 2>&1"
@@ -45,7 +44,11 @@ start_studio() {
     sleep 1
     if ! tmux has-session -t hermes-studio 2>/dev/null && ! is_port_listening 3001; then
       echo "[*] Tmux session absent; launching Next.js Studio via persistent nohup daemon..."
-      nohup bash -c "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 npx next start -H '${BIND_HOST}' -p 3001" > "${RUN_DIR}/studio.log" 2>&1 &
+      if [ -d ".next" ]; then
+        nohup bash -c "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 exec npx next start -H '${BIND_HOST}' -p 3001" > "${RUN_DIR}/studio.log" 2>&1 &
+      else
+        nohup bash -c "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 exec npx next dev -H '${BIND_HOST}' -p 3001 --turbopack" > "${RUN_DIR}/studio.log" 2>&1 &
+      fi
       echo $! > "${RUN_DIR}/studio.pid"
     fi
     echo "[+] Next.js Studio initiated in persistent session."
@@ -59,7 +62,6 @@ start_godseye() {
     echo "[*] Starting God's Eye Cesium Viewer on ${BIND_HOST}:4173 (WSL interface only)..."
     if [ -d "${GODSEYE_DIR}" ]; then
       tmux kill-session -t hermes-godseye 2>/dev/null || true
-      fuser -k 4173/tcp 2>/dev/null || true
       tmux new-session -d -s hermes-godseye "cd '${GODSEYE_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' npm run dev -- --host '${BIND_HOST}' --port 4173 > '${RUN_DIR}/godseye.log' 2>&1"
 
       sleep 1
@@ -128,9 +130,21 @@ stop_all() {
   echo "[*] Stopping Hermes Agent OS services..."
   tmux kill-session -t hermes-studio 2>/dev/null || true
   tmux kill-session -t hermes-godseye 2>/dev/null || true
-  fuser -k 3001/tcp 2>/dev/null || true
-  fuser -k 4173/tcp 2>/dev/null || true
-  echo "[+] Services stopped successfully."
+  # Only stop fallback daemons whose recorded PID still identifies our service.
+  local pidfile pid command
+  for pidfile in "${RUN_DIR}/studio.pid" "${RUN_DIR}/godseye.pid"; do
+    if [ -f "${pidfile}" ]; then
+      pid=$(cat "${pidfile}" 2>/dev/null || true)
+      if [[ "${pid}" =~ ^[0-9]+$ ]] && kill -0 "${pid}" 2>/dev/null; then
+        command=$(ps -p "${pid}" -o args= 2>/dev/null || true)
+        if [[ "${command}" == *"next start"* || "${command}" == *"next dev"* || "${command}" == *"npm run dev"* ]]; then
+          kill "${pid}" 2>/dev/null || true
+        fi
+      fi
+      rm -f "${pidfile}"
+    fi
+  done
+  echo "[+] Managed services stopped; unrelated processes on these ports were left untouched."
 }
 
 status_all() {
