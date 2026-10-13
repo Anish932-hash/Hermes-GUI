@@ -9,6 +9,8 @@ const execAsync = promisify(exec);
 
 export const dynamic = 'force-dynamic';
 
+const LOCAL_BIND_HOST = process.env.HERMES_BIND_HOST || '127.0.0.1';
+
 const HERMES_HOME = '/home/thecyberexpert/.hermes';
 const GODSEYE_DIR = '/home/thecyberexpert/gods-eye-view';
 const STUDIO_DIR = '/home/thecyberexpert/.gemini/antigravity/scratch/studio';
@@ -150,7 +152,7 @@ async function detectAllSubsystems(): Promise<{
   });
 
   // 3. GOD'S EYE 3D CESIUM ENGINE
-  const cesiumOnline = await probeHttp('http://localhost:4173/', 1200);
+  const cesiumOnline = await probeHttp(`http://${LOCAL_BIND_HOST}:4173/`, 1200);
 
   subsystems.push({
     id: 'gods-eye-cesium',
@@ -338,7 +340,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // Step 1: Check and Auto-Heal God's Eye Cesium Server
-    const cesiumOnline = await probeHttp('http://localhost:4173/', 800);
+    const cesiumOnline = await probeHttp(`http://${LOCAL_BIND_HOST}:4173/`, 800);
     if (!cesiumOnline) {
       if (fs.existsSync(GODSEYE_DIR)) {
         try {
