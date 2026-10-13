@@ -8,17 +8,18 @@ import { resolveLocationCoordinates, GODS_EYE_PRESETS, extractGodsEyeTarget } fr
 export const execFileAsync = promisify(execFile);
 export const execAsync = promisify(exec);
 
-export const HERMES_BIN = '/home/thecyberexpert/.hermes/hermes-agent/.hermes/bin/hermes';
-export const HERMES_HOME = '/home/thecyberexpert/.hermes';
-export const HERMES_PATH =
-  '/home/thecyberexpert/.hermes/tools/python-3.14.7+20260901-linux-x64/bin:' +
-  '/home/thecyberexpert/.hermes/hermes-agent/.hermes/bin:' +
-  '/home/thecyberexpert/.hermes/hermes-agent/node_modules/.bin:' +
-  '/home/thecyberexpert/.hermes/tools/node-26.7.0-linux-x64/bin:' +
-  '/home/thecyberexpert/.hermes/tools/npm-12.0.2-linux-x64/bin:' +
-  '/home/thecyberexpert/.local/bin:' +
-  '/home/thecyberexpert/.cargo/bin:' +
-  (process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin');
+export const HERMES_HOME = process.env.HERMES_HOME || path.join(os.homedir(), '.hermes');
+export const HERMES_BIN = process.env.HERMES_BIN || path.join(HERMES_HOME, 'hermes-agent', '.hermes', 'bin', 'hermes');
+export const HERMES_PATH = [
+  path.join(HERMES_HOME, 'tools', 'python-3.14.7+20260901-linux-x64', 'bin'),
+  path.join(HERMES_HOME, 'hermes-agent', '.hermes', 'bin'),
+  path.join(HERMES_HOME, 'hermes-agent', 'node_modules', '.bin'),
+  path.join(HERMES_HOME, 'tools', 'node-26.7.0-linux-x64', 'bin'),
+  path.join(HERMES_HOME, 'tools', 'npm-12.0.2-linux-x64', 'bin'),
+  path.join(os.homedir(), '.local', 'bin'),
+  path.join(os.homedir(), '.cargo', 'bin'),
+  process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+].join(path.delimiter);
 
 export interface HermesStatus {
   version: string;
