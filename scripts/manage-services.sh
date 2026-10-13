@@ -16,9 +16,9 @@ if [[ ! "${BIND_HOST}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
 fi
 export HERMES_BIND_HOST="${BIND_HOST}"
 
-STUDIO_DIR="/home/thecyberexpert/.gemini/antigravity/scratch/studio"
-GODSEYE_DIR="/home/thecyberexpert/gods-eye-view"
-HERMES_DIR="/home/thecyberexpert/.hermes"
+STUDIO_DIR="${HERMES_STUDIO_DIR:-${HOME}/.gemini/antigravity/scratch/studio}"
+GODSEYE_DIR="${HERMES_GODSEYE_DIR:-${HOME}/gods-eye-view}"
+HERMES_DIR="${HERMES_HOME:-${HOME}/.hermes}"
 RUN_DIR="${HERMES_DIR}/run"
 mkdir -p "${RUN_DIR}"
 
