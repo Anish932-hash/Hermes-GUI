@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
-
 import { isLocalRequest } from '@/lib/local-request';
+
+const execAsync = promisify(exec);
 
 const LOCAL_BIND_HOST = process.env.HERMES_BIND_HOST || '127.0.0.1';
 
