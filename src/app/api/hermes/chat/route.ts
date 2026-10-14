@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeHermesChat } from '@/lib/hermes';
-import { launchAppFromText } from '@/lib/app-launcher';
+import { launchAppFromText, parseAppLaunchIntent } from '@/lib/app-launcher';
+import { authorizeAction } from '@/lib/action-policy';
 
 import { isLocalRequest } from '@/lib/local-request';
 
@@ -35,7 +36,15 @@ export async function POST(req: NextRequest) {
 
     // Resolve direct app-launch requests before handing ordinary conversation to Hermes.
     // Both text chat and Voice HUD use this endpoint, so they share the same safe launcher.
-    const appLaunch = await launchAppFromText(message);
+    const launchIntent = parseAppLaunchIntent(message);
+    if (launchIntent) {
+      // Keep natural-language app launches behind the same server-side policy as the launcher API.
+      const decision = authorizeAction('apps.launch');
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.reason, risk: decision.risk, action: 'apps.launch' }, { status: decision.status });
+      }
+    }
+    const appLaunch = launchIntent ? await launchAppFromText(message) : null;
     if (appLaunch) {
       return NextResponse.json({
         role: 'model',
