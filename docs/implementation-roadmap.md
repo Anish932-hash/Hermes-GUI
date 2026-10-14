@@ -34,7 +34,10 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Add policy tests proving denied requests cannot reach the execution callback.
 - [x] Remove automatic background remediation from the diagnostics polling path; auto-setup now runs only after an explicit confirmation.
 - [x] Replace interpolated shell execution for audio test tones with bounded input validation and direct argument spawning.
-- [ ] Audit remaining mutating endpoints and validate confirmation flows manually before calling this phase complete.
+- [x] Restrict the diagnostic command endpoint to a conservative read-only allowlist; remove general file-content and Hermes command access.
+- [x] Keep the God's Eye status GET endpoint read-only; status polling no longer starts services implicitly.
+- [x] Bound Wispr Flow dictation limits and request fields; reject unknown actions instead of silently treating them as status checks.
+- [ ] Finish the remaining mutation-endpoint audit, add targeted route tests, and validate confirmation flows manually before calling this phase complete.
 
 ## Phase 3 — Universal launcher and keyboard navigation
 
