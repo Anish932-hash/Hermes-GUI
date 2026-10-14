@@ -12,9 +12,9 @@ export async function GET(req: Request) {
   try {
     const sessions = await getHermesSessions();
     return NextResponse.json({ sessions });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: error.message || 'Failed to get Hermes sessions', sessions: [] },
+      { error: 'Failed to retrieve Hermes sessions', sessions: [] },
       { status: 500 }
     );
   }
