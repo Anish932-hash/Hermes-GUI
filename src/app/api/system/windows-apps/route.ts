@@ -67,6 +67,22 @@ foreach ($root in $roots) {
       }
   }
 }
+$appPathRoots = @(
+  'HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths',
+  'HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths',
+  'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths'
+)
+foreach ($registryRoot in $appPathRoots) {
+  if (Test-Path -LiteralPath $registryRoot) {
+    Get-ChildItem -LiteralPath $registryRoot -ErrorAction SilentlyContinue | ForEach-Object {
+      $exeName = [IO.Path]::GetFileNameWithoutExtension($_.PSChildName)
+      $exePath = (Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue).'(default)'
+      if ($exeName -and $exePath -and (Test-Path -LiteralPath $exePath -PathType Leaf) -and -not $items.ContainsKey($exeName)) {
+        $items[$exeName] = @{ name = $exeName; source = 'app-path'; appId = '' }
+      }
+    }
+  }
+}
 @($items.Values | Sort-Object -Property name | Select-Object -First 400) | ConvertTo-Json -Compress
 `;
     const output = await runWindowsPowerShell(script);
@@ -111,6 +127,32 @@ if ($registered.Count -eq 1) {
   Start-Process -FilePath explorer.exe -ArgumentList ('shell:AppsFolder\' + [string]$registered[0].AppID)
   @{ success = $true; name = [string]$registered[0].Name; source = 'registered-app' } | ConvertTo-Json -Compress
   exit 0
+}
+$appPathMatches = @()
+$appPathRoots = @(
+  'HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths',
+  'HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths',
+  'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths'
+)
+foreach ($registryRoot in $appPathRoots) {
+  if (Test-Path -LiteralPath $registryRoot) {
+    $appPathMatches += Get-ChildItem -LiteralPath $registryRoot -ErrorAction SilentlyContinue | Where-Object {
+      [IO.Path]::GetFileNameWithoutExtension($_.PSChildName) -ieq $name
+    } | ForEach-Object {
+      $exePath = (Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue).'(default)'
+      if ($exePath -and (Test-Path -LiteralPath $exePath -PathType Leaf)) { $exePath }
+    }
+  }
+}
+$appPathMatches = @($appPathMatches | Sort-Object -Unique)
+if ($appPathMatches.Count -eq 1) {
+  Start-Process -FilePath $appPathMatches[0]
+  @{ success = $true; name = $name; source = 'app-path' } | ConvertTo-Json -Compress
+  exit 0
+}
+if ($appPathMatches.Count -gt 1) {
+  @{ success = $false; error = 'More than one registered application matches that name.'; candidates = $appPathMatches } | ConvertTo-Json -Compress
+  exit 3
 }
 $roots = @(
   (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'),
