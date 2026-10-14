@@ -45,6 +45,7 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Reject malformed loopback Host authorities and Origin headers; add regression tests for path, query, and user-info forms.
 - [x] Restrict the diagnostic command endpoint to exact read-only command/argument combinations; remove general file-content and Hermes command access.
 - [x] Add unit tests for approved diagnostic command shapes and rejection of arbitrary paths, flags, and commands.
+- [x] Restrict process-list diagnostics to PID, resource usage, and process name instead of full command lines that may contain secrets.
 - [x] Bound geocoding query length and reject out-of-range coordinates from external geocoders.
 - [x] Validate Sarvam STT/TTS request fields and avoid returning raw provider error bodies to the client.
 - [x] Sanitize internal exception details from Hermes, audio, telemetry, and voice API error responses.
