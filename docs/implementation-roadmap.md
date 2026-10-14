@@ -20,10 +20,11 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 
 ## Phase 1 — Truthful system-health overview
 
-- [ ] Create a read-only health model for Studio/API, Hermes Gateway, WSL runtime, God's Eye, app discovery, and configured voice providers.
-- [ ] Give every check explicit `online`, `offline`, `degraded`, or `unknown` state, with a timestamp and useful non-sensitive reason.
-- [ ] Add a compact health overview with manual refresh and restrained polling; no fabricated default percentages or success states.
-- [ ] Test timeout, unavailable-service, malformed-response, and local-request rejection paths.
+- [x] Add a read-only health endpoint for Studio/API, Hermes Gateway, WSL runtime, God's Eye, Kali app discovery, Wispr Flow, and Sarvam configuration.
+- [x] Give checks explicit `online`, `offline`, `degraded`, or `unknown` state, timestamps, and non-sensitive explanations.
+- [x] Add a System Command Center overlay with manual refresh and 30-second polling while open; no fabricated health percentages.
+- [ ] Add automated route tests for timeout, unavailable-service, malformed-response, and local-request rejection paths.
+- [ ] Validate health results on the actual Windows + Kali WSL2 machine before calling the phase complete.
 
 ## Phase 2 — Secure action and permission model
 
