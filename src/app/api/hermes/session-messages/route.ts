@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
     const messages = await getSessionMessages(sessionId);
     return NextResponse.json({ messages });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message, messages: [] }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Failed to retrieve session messages', messages: [] }, { status: 500 });
   }
 }
