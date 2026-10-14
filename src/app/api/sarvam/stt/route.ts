@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
     const rawLang = formData.get('language_code');
     const languageCode = typeof rawLang === 'string' && rawLang.trim() ? rawLang.trim() : 'unknown';
-    if (languageCode.length > 32 || /[\\u0000-\\u001f\\u007f]/.test(languageCode)) {
+    if (languageCode.length > 32 || [...languageCode].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
       return NextResponse.json({ error: 'Invalid language code' }, { status: 400 });
     }
     const rawApiKey = formData.get('apiKey');
