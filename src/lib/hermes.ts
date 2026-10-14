@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { resolveLocationCoordinates, GODS_EYE_PRESETS, extractGodsEyeTarget } from './godseye';
+import { observedMemoryDecrease } from './system-boost-policy';
 
 export const execFileAsync = promisify(execFile);
 
@@ -449,9 +450,7 @@ export async function performSystemBoost(): Promise<{
 
   // Report only an observed decrease. sync and a WAL checkpoint do not guarantee
   // that Linux will release memory, so a minimum/fixed value is misleading.
-  const freedMB = beforeRamMB !== null && afterRamMB !== null
-    ? Math.max(0, beforeRamMB - afterRamMB)
-    : null;
+  const freedMB = observedMemoryDecrease(beforeRamMB, afterRamMB);
 
   return {
     freedMB,
