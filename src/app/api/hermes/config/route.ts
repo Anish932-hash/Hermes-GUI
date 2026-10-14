@@ -161,6 +161,9 @@ export async function POST(req: NextRequest) {
     if (body.reasoning !== undefined && !['on', 'off', 'auto'].includes(body.reasoning)) {
       return NextResponse.json({ error: 'Reasoning must be on, off, or auto' }, { status: 400 });
     }
+    if (body.streaming !== undefined && typeof body.streaming !== 'boolean') {
+      return NextResponse.json({ error: 'streaming must be a boolean' }, { status: 400 });
+    }
     if (body.temperature !== undefined && (typeof body.temperature !== 'number' || !Number.isFinite(body.temperature) || body.temperature < 0 || body.temperature > 2)) {
       return NextResponse.json({ error: 'Temperature must be between 0 and 2' }, { status: 400 });
     }
@@ -179,7 +182,14 @@ export async function POST(req: NextRequest) {
     if (typeof body.rawYaml === 'string' && typeof body.soulPrompt === 'string') {
       return NextResponse.json({ error: 'Submit rawYaml or soulPrompt in a separate request' }, { status: 400 });
     }
-    if (typeof body.rawYaml === 'string' || typeof body.soulPrompt === 'string') {
+    const hasRawWrite = typeof body.rawYaml === 'string';
+    const hasSoulWrite = typeof body.soulPrompt === 'string';
+    const structuredKeys = ['model', 'provider', 'temperature', 'maxTokens', 'streaming', 'reasoning', 'maxSessions'];
+    const hasStructuredUpdate = structuredKeys.some((key) => Object.prototype.hasOwnProperty.call(body, key));
+    if (!hasRawWrite && !hasSoulWrite && !hasStructuredUpdate) {
+      return NextResponse.json({ error: 'No supported configuration fields were provided' }, { status: 400 });
+    }
+    if (hasRawWrite || hasSoulWrite) {
       const action = typeof body.rawYaml === 'string' ? 'config.raw-write' : 'config.soul-write';
       const decision = authorizeAction(action, body.confirmation);
       if (!decision.allowed) {
@@ -188,6 +198,10 @@ export async function POST(req: NextRequest) {
     }
     const configPath = path.join(HERMES_HOME, 'config.yaml');
     const soulPath = path.join(HERMES_HOME, 'SOUL.md');
+
+    if (!hasRawWrite && !hasSoulWrite && !fs.existsSync(configPath)) {
+      return NextResponse.json({ error: 'Hermes config.yaml was not found; no settings were changed' }, { status: 404 });
+    }
 
     // 1. Direct raw YAML update
     if (typeof body.rawYaml === 'string') {
@@ -198,7 +212,9 @@ export async function POST(req: NextRequest) {
       fs.writeFileSync(configPath, body.rawYaml, 'utf8');
       return NextResponse.json({
         success: true,
-        message: 'Successfully saved raw config.yaml (backup created)',
+        message: fs.existsSync(`${configPath}.bak`)
+          ? 'Successfully saved raw config.yaml; a backup was created when a prior config existed.'
+          : 'Successfully created raw config.yaml.',
       });
     }
 
@@ -214,6 +230,25 @@ export async function POST(req: NextRequest) {
     // 3. Structured settings update
     if (fs.existsSync(configPath)) {
       let content = fs.readFileSync(configPath, 'utf8');
+
+      // Fail before writing if the existing YAML cannot represent a requested
+      // structured field; don't claim success for settings silently ignored.
+      const requiredPatterns: Array<[string, RegExp]> = [
+        ['model', /default:\\s*['"]?[^'"\\n#]+['"]?/],
+        ['provider', /provider:\\s*['"]?[^'"\\n#]+['"]?/],
+        ['maxTokens', /max_tokens:\\s*[0-9]+/],
+        ['streaming', /streaming:\\s*(true|false)/i],
+        ['reasoning', /reasoning:\\s*['"]?[^'"\\n#]+['"]?/],
+        ['maxSessions', /max_concurrent_sessions:\\s*[0-9]+/],
+      ];
+      for (const [key, pattern] of requiredPatterns) {
+        if (Object.prototype.hasOwnProperty.call(body, key) && !pattern.test(content)) {
+          return NextResponse.json({ error: `Cannot update ${key}: its setting is missing from config.yaml` }, { status: 400 });
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'temperature') && !/temperature:\\s*[0-9.]+/.test(content) && !/model:\\n/.test(content)) {
+        return NextResponse.json({ error: 'Cannot update temperature: no model section exists in config.yaml' }, { status: 400 });
+      }
 
       if (body.model) {
         if (/default:\s*['"]?[^'"\n#]+['"]?/.test(content)) {
