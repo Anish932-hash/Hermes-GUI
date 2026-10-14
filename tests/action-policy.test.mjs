@@ -5,6 +5,9 @@ import { authorizeAction, classifyAction, runAuthorizedAction } from '../src/lib
 test('classifies supported actions by risk', () => {
   assert.equal(classifyAction('health.read'), 'read-only');
   assert.equal(classifyAction('apps.launch'), 'routine');
+  for (const action of ['windows.open-mic-settings', 'windows.open-sound-settings', 'windows.launch-kali', 'windows.open-explorer', 'windows.launch-godseye', 'windows.launch-studio-app']) {
+    assert.equal(classifyAction(action), 'routine', action);
+  }
   assert.equal(classifyAction('audio.diagnostics'), 'read-only');
   assert.equal(classifyAction('audio.test-tone'), 'routine');
   assert.equal(classifyAction('gateway.start'), 'routine');
@@ -19,6 +22,9 @@ test('classifies supported actions by risk', () => {
 test('allows read-only and routine actions without confirmation', () => {
   assert.deepEqual(authorizeAction('health.read'), { allowed: true, risk: 'read-only' });
   assert.deepEqual(authorizeAction('apps.launch'), { allowed: true, risk: 'routine' });
+  for (const action of ['windows.open-mic-settings', 'windows.open-sound-settings', 'windows.launch-kali', 'windows.open-explorer', 'windows.launch-godseye', 'windows.launch-studio-app']) {
+    assert.deepEqual(authorizeAction(action), { allowed: true, risk: 'routine' });
+  }
   assert.deepEqual(authorizeAction('audio.diagnostics'), { allowed: true, risk: 'read-only' });
   assert.deepEqual(authorizeAction('audio.test-tone'), { allowed: true, risk: 'routine' });
   assert.deepEqual(authorizeAction('gateway.start'), { allowed: true, risk: 'routine' });
