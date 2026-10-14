@@ -38,6 +38,7 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Route both natural-language and exact-name Windows app launches through the central `apps.launch` policy.
 - [x] Validate structured Hermes config inputs and cap raw YAML/SOUL payload sizes before writing files.
 - [x] Validate Hermes chat payload types/lengths and reject malformed gateway/auto-setup request bodies.
+- [x] Constrain chat session IDs to the supported identifier alphabet and reject option-like/whitespace model identifiers before CLI dispatch.
 - [x] Register Windows bridge settings, launcher, and Explorer actions in the central policy and enforce policy checks in each handler.
 - [x] Register Wispr Flow status, launch, push-to-talk, trigger, and sync operations in the central policy.
 - [x] Extract Wispr dictation-limit parsing into a tested helper and correct numeric-only validation.
