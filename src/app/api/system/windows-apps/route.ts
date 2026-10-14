@@ -94,9 +94,8 @@ foreach ($registryRoot in $appPathRoots) {
       applications: Array.isArray(applications) ? applications : [applications],
       truncated: Array.isArray(applications) && applications.length >= 400,
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Could not enumerate Windows applications';
-    return NextResponse.json({ error: message }, { status: 502 });
+  } catch {
+    return NextResponse.json({ error: 'Could not enumerate Windows applications' }, { status: 502 });
   }
 }
 
@@ -207,7 +206,7 @@ exit 2
       } catch {}
     }
     return NextResponse.json(
-      { error: error.stderr || error.message || 'Windows application launch failed' },
+      { error: 'Windows application launch failed' },
       { status: 502 },
     );
   }
