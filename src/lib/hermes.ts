@@ -417,7 +417,7 @@ export async function performSystemBoost(): Promise<{
           fs.unlinkSync(path.join(audioCacheDir, file));
         } catch {}
       }
-      if (files.length > 0) details.push(`Purged ${files.length} expired audio synthesis cache blocks`);
+      if (files.length > 0) details.push(`Removed ${files.length} audio synthesis cache files`);
     }
   } catch {}
 
@@ -429,7 +429,7 @@ export async function performSystemBoost(): Promise<{
         timeout: 4000,
         maxBuffer: 8192,
       });
-      details.push('Compacted Hermes SQLite WAL memory journals');
+      details.push('Ran a passive SQLite WAL checkpoint');
     }
   } catch {}
 
