@@ -32,7 +32,7 @@ export function useAutonomousHealer() {
   const [isFixing, setIsFixing] = useState(false);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [actionsLog, setActionsLog] = useState<AutoSetupAction[]>([]);
-  const [autoHealEnabled, setAutoHealEnabled] = useState(true);
+  const [autoHealEnabled, setAutoHealEnabled] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Run live system probe
@@ -45,26 +45,8 @@ export function useAutonomousHealer() {
         setDiagnostics(data);
         setLastScanTime(new Date());
 
-        // Auto-heal check: if any subsystem is degraded and auto-heal is enabled, auto-trigger healing!
-        const needsFix = data.subsystems?.some(
-          (s: DiagnosticSubsystem) => s.status === 'OFFLINE' || (s.id === 'gods-eye-cesium' && s.status === 'STANDBY')
-        );
+        // Scanning is read-only. Remediation is manual and requires a separate confirmation.
 
-        if (needsFix && autoHealEnabled && !isFixing) {
-          console.log('[AUTONOMOUS_HEALER] Subsystem degradation detected. Triggering self-healing routine...');
-          // Trigger heal asynchronously
-          fetch('/api/system/auto-setup', { method: 'POST' })
-            .then((r) => r.json())
-            .then((fixData) => {
-              if (fixData.actions) {
-                setActionsLog(fixData.actions);
-              }
-              if (fixData.diagnostics) {
-                setDiagnostics(fixData.diagnostics);
-              }
-            })
-            .catch(() => {});
-        }
       }
     } catch (err) {
       console.warn('[AUTONOMOUS_HEALER] Scan error:', err);
@@ -75,11 +57,14 @@ export function useAutonomousHealer() {
 
   // Execute full autonomous auto-setup and self-healing
   const runAutoSetup = useCallback(async () => {
+    const confirmed = window.confirm('Run Hermes Agent OS auto-setup?\n\nThis may start services, checkpoint the state database, and copy a configured provider key into the Hermes environment file.\n\nContinue only if you want these changes applied.');
+    if (!confirmed) return null;
     setIsFixing(true);
     try {
       const res = await fetch('/api/system/auto-setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: 'system.auto-setup' }),
       });
       if (res.ok) {
         const data = await res.json();
