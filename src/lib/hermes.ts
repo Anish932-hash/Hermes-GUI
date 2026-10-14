@@ -119,7 +119,7 @@ export async function getHermesStatus(): Promise<HermesStatus> {
   let sessionsCount = 0;
 
   try {
-    const serviceState = (await execAsync('systemctl --user is-active hermes-gateway')).stdout.trim();
+    const serviceState = (await execFileAsync('systemctl', ['--user', 'is-active', 'hermes-gateway'], { timeout: 3000, maxBuffer: 8192 })).stdout.trim();
     if (serviceState === 'active') gatewayState = 'running';
     else if (serviceState === 'inactive' || serviceState === 'failed') gatewayState = 'stopped';
   } catch (error: any) {
@@ -351,7 +351,7 @@ export async function manageGateway(action: 'start' | 'stop' | 'restart' | 'stat
       message: `Gateway ${action} executed successfully.`,
       output: stdout || stderr,
     };
-  } catch (err: any) {
+  } catch {
     return {
       success: false,
       message: `Failed to ${action} gateway. Check local diagnostics for details.`,
@@ -619,8 +619,17 @@ ${rows}
     (lower.includes('security') && lower.includes('audit'))
   ) {
     try {
-      const { stdout: netstatOut } = await execAsync('ss -tuln 2>/dev/null || netstat -tuln 2>/dev/null || true');
-      const { stdout: unameOut } = await execAsync('uname -a 2>/dev/null || true');
+      let netstatOut = '';
+      try {
+        ({ stdout: netstatOut } = await execFileAsync('ss', ['-tuln'], { timeout: 3000, maxBuffer: 64 * 1024 }));
+      } catch {
+        try {
+          ({ stdout: netstatOut } = await execFileAsync('netstat', ['-tuln'], { timeout: 3000, maxBuffer: 64 * 1024 }));
+        } catch {
+          netstatOut = '';
+        }
+      }
+      const { stdout: unameOut } = await execFileAsync('uname', ['-a'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: '' }));
       const lines = netstatOut.split('\n').filter((l) => l.includes('LISTEN')).slice(0, 8);
       const telemetry = getSystemTelemetry();
       return {
