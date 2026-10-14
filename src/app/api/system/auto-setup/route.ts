@@ -21,8 +21,8 @@ interface DiagnosticSubsystem {
   id: string;
   name: string;
   category: 'CORE' | 'GEOSPATIAL' | 'DATABASE' | 'VOICE' | 'RUNTIME' | 'SECURITY' | 'HARDWARE';
-  status: 'ONLINE' | 'STANDBY' | 'DEGRADED' | 'OFFLINE';
-  healthPercent: number;
+  status: 'ONLINE' | 'STANDBY' | 'DEGRADED' | 'OFFLINE' | 'UNKNOWN';
+  healthPercent: number | null;
   details: string;
   metrics?: Record<string, any>;
   autoFixed?: boolean;
@@ -64,11 +64,11 @@ async function detectAllSubsystems(): Promise<{
   const subsystems: DiagnosticSubsystem[] = [];
 
   // 1. HARDWARE AVIONICS (WSL2 Host)
-  let cpuModel = 'AMD Ryzen 5 7520U';
-  let ramTotalMB = 3549;
-  let ramUsedMB = 1950;
-  let kernelVersion = '6.6+';
-  let cpuUsage = 18;
+  let cpuModel = 'unknown';
+  let ramTotalMB: number | null = null;
+  let ramUsedMB: number | null = null;
+  let kernelVersion = 'unknown';
+  let cpuUsage: number | null = null;
 
   try {
     if (fs.existsSync('/proc/cpuinfo')) {
@@ -80,13 +80,13 @@ async function detectAllSubsystems(): Promise<{
       const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
       const totalMatch = meminfo.match(/MemTotal:\s*(\d+)\s*kB/);
       const freeMatch = meminfo.match(/MemAvailable:\s*(\d+)\s*kB/);
-      if (totalMatch) {
-        ramTotalMB = Math.round(parseInt(totalMatch[1], 10) / 1024);
-        const freeMB = freeMatch ? Math.round(parseInt(freeMatch[1], 10) / 1024) : 1000;
-        ramUsedMB = Math.max(0, ramTotalMB - freeMB);
+      if (totalMatch) ramTotalMB = Math.round(parseInt(totalMatch[1], 10) / 1024);
+      if (totalMatch && freeMatch) {
+        const freeMB = Math.round(parseInt(freeMatch[1], 10) / 1024);
+        ramUsedMB = Math.max(0, ramTotalMB! - freeMB);
       }
     }
-    const { stdout: unameOut } = await execFileAsync('uname', ['-r'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: '6.6.36.3-microsoft-standard-WSL2' }));
+    const { stdout: unameOut } = await execFileAsync('uname', ['-r'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: '' }));
     kernelVersion = unameOut.trim();
 
     const { stdout: topOut } = await execFileAsync('top', ['-bn1'], { timeout: 2500, maxBuffer: 64 * 1024 }).catch(() => ({ stdout: '' }));
@@ -100,17 +100,17 @@ async function detectAllSubsystems(): Promise<{
     id: 'hardware-avionics',
     name: 'WSL2 Hardware Avionics',
     category: 'HARDWARE',
-    status: 'ONLINE',
-    healthPercent: 100,
-    details: `${cpuModel} // Kernel ${kernelVersion} // ${ramUsedMB}MB of ${ramTotalMB}MB Pool`,
-    metrics: { cpuModel, ramTotalMB, ramUsedMB, cpuUsage, kernelVersion, d3d12: 'READY' },
+    status: cpuModel !== 'unknown' || kernelVersion !== 'unknown' || ramTotalMB !== null ? 'ONLINE' : 'UNKNOWN',
+    healthPercent: null,
+    details: `CPU ${cpuModel} // Kernel ${kernelVersion} // Memory ${ramUsedMB ?? 'unknown'}MB used of ${ramTotalMB ?? 'unknown'}MB`,
+    metrics: { cpuModel, ramTotalMB, ramUsedMB, cpuUsage, kernelVersion, d3d12: 'unknown' },
   });
 
   // 2. HERMES GATEWAY CORE
   let gatewayAlive = false;
   let gatewayPid: number | undefined = undefined;
   let gatewayStateStr = 'offline';
-  let modelName = 'nvidia/nemotron-3-ultra-550b-a55b';
+  let modelName = 'unknown';
   let activeAgents = 0;
 
   try {
@@ -146,9 +146,9 @@ async function detectAllSubsystems(): Promise<{
     name: 'Hermes Neural Gateway Daemon',
     category: 'CORE',
     status: gatewayAlive ? 'ONLINE' : 'DEGRADED',
-    healthPercent: gatewayAlive ? 100 : 40,
+    healthPercent: null,
     details: gatewayAlive
-      ? `Active on PID ${gatewayPid} // State: ${gatewayStateStr} // Model: ${modelName}`
+      ? `Process detected on PID ${gatewayPid} // State: ${gatewayStateStr} // Model: ${modelName}`
       : 'Daemon process stopped or restarting',
     metrics: { pid: gatewayPid, running: gatewayAlive, state: gatewayStateStr, model: modelName, activeAgents },
   });
@@ -161,17 +161,17 @@ async function detectAllSubsystems(): Promise<{
     name: "God's Eye 3D Earth Engine",
     category: 'GEOSPATIAL',
     status: cesiumOnline ? 'ONLINE' : 'STANDBY',
-    healthPercent: cesiumOnline ? 100 : 50,
+    healthPercent: null,
     details: cesiumOnline
-      ? 'CesiumJS 3D Viewer active on :4173 // Terrain & Satellite Ready'
-      : 'Cesium dev server standing by on port 4173',
+      ? 'HTTP viewer responded on port 4173; terrain and satellite services were not independently verified.'
+      : 'No HTTP response from the viewer on port 4173.',
     metrics: { port: 4173, online: cesiumOnline, url: 'http://localhost:4173' },
   });
 
   // 4. SQLITE WAL STATE DB
   let dbExists = false;
   let dbSizeMB = 0;
-  let sessionsCount = 0;
+  let sessionsCount: number | null = null;
   let walActive = false;
 
   try {
@@ -182,8 +182,9 @@ async function detectAllSubsystems(): Promise<{
       dbSizeMB = +(stat.size / (1024 * 1024)).toFixed(2);
       walActive = fs.existsSync(path.join(HERMES_HOME, 'state.db-wal'));
 
-      const { stdout: countOut } = await execFileAsync('sqlite3', [dbPath, 'SELECT count(*) FROM sessions;'], { timeout: 3000, maxBuffer: 8192 }).catch(() => ({ stdout: '0' }));
-      sessionsCount = parseInt(countOut.trim(), 10) || 0;
+      const { stdout: countOut } = await execFileAsync('sqlite3', [dbPath, 'SELECT count(*) FROM sessions;'], { timeout: 3000, maxBuffer: 8192 }).catch(() => ({ stdout: '' }));
+      const parsedCount = Number.parseInt(countOut.trim(), 10);
+      sessionsCount = Number.isFinite(parsedCount) && parsedCount >= 0 ? parsedCount : null;
     }
   } catch {}
 
@@ -192,9 +193,9 @@ async function detectAllSubsystems(): Promise<{
     name: 'SQLite WAL State Storage',
     category: 'DATABASE',
     status: dbExists ? 'ONLINE' : 'DEGRADED',
-    healthPercent: dbExists ? 100 : 30,
+    healthPercent: null,
     details: dbExists
-      ? `state.db (${dbSizeMB} MB) // ${sessionsCount} Saved Sessions // WAL Sync Active`
+      ? `state.db (${dbSizeMB} MB) // ${sessionsCount === null ? 'Session count unavailable' : `${sessionsCount} saved sessions`} // WAL file ${walActive ? 'present' : 'not present'}`
       : 'state.db missing, auto-initialization ready',
     metrics: { dbExists, dbSizeMB, sessionsCount, walActive },
   });
@@ -223,16 +224,16 @@ async function detectAllSubsystems(): Promise<{
     name: 'Sarvam Saaras Neural Voice Core',
     category: 'VOICE',
     status: sarvamConfigured ? 'ONLINE' : 'STANDBY',
-    healthPercent: sarvamConfigured ? 100 : 70,
+    healthPercent: null,
     details: sarvamConfigured
-      ? `Saaras STT & Bulbul TTS Active (Configured via ${sarvamKeySource})`
-      : 'Hardware WebAudio Synthesis active (Fallback Ready)',
+      ? `Sarvam API key appears configured via ${sarvamKeySource}; provider reachability is not verified.`
+      : 'No Sarvam API key detected in checked server-side locations.' ,
     metrics: { configured: sarvamConfigured, keySource: sarvamKeySource, models: ['saaras:v2', 'bulbul:v1'] },
   });
 
   // 6. PYTHON 3.14 & UV ISOLATION RUNTIME
-  let pythonPath = '/usr/bin/python3';
-  let pythonVersion = 'Python 3.14';
+  let pythonPath = 'unknown';
+  let pythonVersion = 'unknown';
   const customPython = path.join(HERMES_HOME, 'tools', 'python-3.14.7+20260901-linux-x64', 'bin', 'python3');
 
   if (fs.existsSync(customPython)) {
@@ -240,8 +241,12 @@ async function detectAllSubsystems(): Promise<{
     pythonVersion = 'Python 3.14.7 (Hermes Sandboxed)';
   } else {
     try {
-      const { stdout: pyVerOut } = await execFileAsync('python3', ['--version'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: 'Python 3.12' }));
-      pythonVersion = pyVerOut.trim();
+      const { stdout: pyVerOut } = await execFileAsync('python3', ['--version'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: '' }));
+      if (pyVerOut.trim()) {
+        pythonVersion = pyVerOut.trim();
+        const { stdout: pathOut } = await execFileAsync('which', ['python3'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: '' }));
+        if (pathOut.trim()) pythonPath = pathOut.trim();
+      }
     } catch {}
   }
 
@@ -249,10 +254,10 @@ async function detectAllSubsystems(): Promise<{
     id: 'python-runtime',
     name: 'Python Sandbox Runtime',
     category: 'RUNTIME',
-    status: 'ONLINE',
-    healthPercent: 100,
-    details: `${pythonVersion} // Isolated Runtime Path: ${pythonPath}`,
-    metrics: { pythonPath, pythonVersion, isolated: true },
+    status: pythonVersion !== 'unknown' ? 'ONLINE' : 'UNKNOWN',
+    healthPercent: null,
+    details: `${pythonVersion} // Runtime Path: ${pythonPath} // Isolation not verified`,
+    metrics: { pythonPath, pythonVersion, isolated: Boolean(fs.existsSync(customPython)) },
   });
 
   // 7. SKILLS ARSENAL & SECURITY TOOLS
@@ -275,24 +280,23 @@ async function detectAllSubsystems(): Promise<{
         }
       }
     }
-    if (skillsCount === 0) skillsCount = 61; // fallback known count
   } catch {
-    skillsCount = 61;
+    // Keep the observed count at zero; discovery failure is represented below.
   }
 
   subsystems.push({
     id: 'skills-arsenal',
     name: 'Skills & Tool Arsenal',
     category: 'SECURITY',
-    status: 'ONLINE',
-    healthPercent: 100,
-    details: `${skillsCount} Loaded Modules across ${skillsCategories.length || 18} Categories`,
-    metrics: { skillsCount, categoriesCount: skillsCategories.length || 18, categories: skillsCategories.slice(0, 8) },
+    status: skillsCategories.length > 0 ? 'ONLINE' : 'UNKNOWN',
+    healthPercent: null,
+    details: `${skillsCount} observed entries across ${skillsCategories.length} discovered categories`,
+    metrics: { skillsCount, categoriesCount: skillsCategories.length, categories: skillsCategories.slice(0, 8) },
   });
 
   // Compute overall system health percentage
-  const totalHealth = subsystems.reduce((acc, sub) => acc + sub.healthPercent, 0);
-  const overallHealth = Math.round(totalHealth / subsystems.length);
+  // Do not manufacture a single health score from arbitrary per-service weights.
+  const overallHealth: number | null = null;
 
   return {
     subsystems,
@@ -303,8 +307,8 @@ async function detectAllSubsystems(): Promise<{
       kernel: kernelVersion,
       ramTotalMB,
       ramUsedMB,
-      gpu: 'AMD Radeon 610M (D3D12 Active)',
-      wslDistro: 'Kali Linux WSL2',
+      gpu: 'unknown',
+      wslDistro: process.env.WSL_DISTRO_NAME || 'unknown',
       gatewayPid,
       cesiumPort: 4173,
     },
