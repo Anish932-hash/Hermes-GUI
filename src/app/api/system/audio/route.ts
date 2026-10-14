@@ -192,7 +192,7 @@ export async function GET(req: Request) {
         fft: Array(28).fill(0),
         server: PULSE_SERVER,
         isAvailable: fs.existsSync(PULSE_SERVER),
-        error: error.message,
+        error: 'Audio diagnostics failed',
       },
       { status: 500 }
     );
