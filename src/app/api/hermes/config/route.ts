@@ -141,7 +141,41 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    if (typeof body.rawYaml === 'string' && body.rawYaml.length > 256 * 1024) {
+      return NextResponse.json({ error: 'Raw configuration exceeds the 256 KB limit' }, { status: 413 });
+    }
+    if (typeof body.soulPrompt === 'string' && body.soulPrompt.length > 64 * 1024) {
+      return NextResponse.json({ error: 'SOUL prompt exceeds the 64 KB limit' }, { status: 413 });
+    }
+    const validScalar = (value: unknown, max: number) => typeof value === 'string' && value.length > 0 && value.length <= max && ![...value].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127);
+    if (body.model !== undefined && !validScalar(body.model, 160)) {
+      return NextResponse.json({ error: 'Invalid model identifier' }, { status: 400 });
+    }
+    if (body.provider !== undefined && (!validScalar(body.provider, 64) || !/^[a-zA-Z0-9._-]+$/.test(body.provider))) {
+      return NextResponse.json({ error: 'Invalid provider identifier' }, { status: 400 });
+    }
+    if (body.reasoning !== undefined && !['on', 'off', 'auto'].includes(body.reasoning)) {
+      return NextResponse.json({ error: 'Reasoning must be on, off, or auto' }, { status: 400 });
+    }
+    if (body.temperature !== undefined && (typeof body.temperature !== 'number' || !Number.isFinite(body.temperature) || body.temperature < 0 || body.temperature > 2)) {
+      return NextResponse.json({ error: 'Temperature must be between 0 and 2' }, { status: 400 });
+    }
+    if (body.maxTokens !== undefined && (!Number.isInteger(body.maxTokens) || body.maxTokens < 1 || body.maxTokens > 200000)) {
+      return NextResponse.json({ error: 'maxTokens must be an integer from 1 to 200000' }, { status: 400 });
+    }
+    if (body.maxSessions !== undefined && (!Number.isInteger(body.maxSessions) || body.maxSessions < 1 || body.maxSessions > 100)) {
+      return NextResponse.json({ error: 'maxSessions must be an integer from 1 to 100' }, { status: 400 });
+    }
+    if (body.rawYaml !== undefined && typeof body.rawYaml !== 'string') {
+      return NextResponse.json({ error: 'rawYaml must be a string' }, { status: 400 });
+    }
+    if (body.soulPrompt !== undefined && typeof body.soulPrompt !== 'string') {
+      return NextResponse.json({ error: 'soulPrompt must be a string' }, { status: 400 });
+    }
     if (typeof body.rawYaml === 'string' || typeof body.soulPrompt === 'string') {
       const action = typeof body.rawYaml === 'string' ? 'config.raw-write' : 'config.soul-write';
       const decision = authorizeAction(action, body.confirmation);
@@ -180,13 +214,13 @@ export async function POST(req: NextRequest) {
 
       if (body.model) {
         if (/default:\s*['"]?[^'"\n#]+['"]?/.test(content)) {
-          content = content.replace(/default:\s*['"]?[^'"\n#]+['"]?/, `default: '${body.model}'`);
+          content = content.replace(/default:\s*['"]?[^'"\n#]+['"]?/, () => `default: '${body.model.replace(/'/g, "''")}'`);
         }
       }
 
       if (body.provider) {
         if (/provider:\s*['"]?[^'"\n#]+['"]?/.test(content)) {
-          content = content.replace(/provider:\s*['"]?[^'"\n#]+['"]?/, `provider: '${body.provider}'`);
+          content = content.replace(/provider:\s*['"]?[^'"\n#]+['"]?/, () => `provider: '${body.provider.replace(/'/g, "''")}'`);
         }
       }
 
@@ -213,7 +247,7 @@ export async function POST(req: NextRequest) {
 
       if (body.reasoning) {
         if (/reasoning:\s*['"]?[^'"\n#]+['"]?/.test(content)) {
-          content = content.replace(/reasoning:\s*['"]?[^'"\n#]+['"]?/, `reasoning: '${body.reasoning}'`);
+          content = content.replace(/reasoning:\s*['"]?[^'"\n#]+['"]?/, () => `reasoning: '${body.reasoning}'`);
         }
       }
 
