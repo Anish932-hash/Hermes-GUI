@@ -322,7 +322,7 @@ export async function GET(req: Request) {
   try {
     const diagnostics = await detectAllSubsystems();
     return NextResponse.json(diagnostics);
-  } catch (err: any) {
+  } catch {
     return NextResponse.json(
       { error: 'Auto-detection failed' },
       { status: 500 }
@@ -366,7 +366,7 @@ export async function POST(req: NextRequest) {
             status: 'SUCCESS',
             message: "God's Eye server process launched; readiness has not yet been verified.",
           });
-        } catch (e: any) {
+        } catch {
           actions.push({
             step: 'CESIUM_AUTOSPAWN',
             status: 'WARNING',
@@ -415,7 +415,7 @@ export async function POST(req: NextRequest) {
             status: 'SUCCESS',
             message: 'Hermes Gateway process launched; gateway readiness has not yet been verified.',
           });
-        } catch (e: any) {
+        } catch {
           actions.push({
             step: 'HERMES_AUTOREVIVE',
             status: 'WARNING',
@@ -441,7 +441,7 @@ export async function POST(req: NextRequest) {
           status: 'SUCCESS',
           message: 'Passive SQLite WAL checkpoint command completed; full checkpoint status depends on database activity.',
         });
-      } catch (e: any) {
+      } catch {
         actions.push({
           step: 'SQLITE_WAL_CHECKPOINT',
           status: 'WARNING',
@@ -477,7 +477,7 @@ export async function POST(req: NextRequest) {
             message: 'Environment configurations already harmonized between Studio and Hermes runtime.',
           });
         }
-      } catch (e: any) {
+      } catch {
         actions.push({
           step: 'ENV_SYNC',
           status: 'WARNING',
@@ -495,7 +495,7 @@ export async function POST(req: NextRequest) {
       diagnostics: freshDiagnostics,
       completedAt: new Date().toISOString(),
     });
-  } catch (err: any) {
+  } catch {
     return NextResponse.json(
       { error: 'Auto-setup encountered an error' },
       { status: 500 }
