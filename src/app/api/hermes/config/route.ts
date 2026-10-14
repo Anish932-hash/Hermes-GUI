@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { HERMES_HOME, execAsync } from '@/lib/hermes';
 import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,6 +142,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+    if (typeof body.rawYaml === 'string' || typeof body.soulPrompt === 'string') {
+      const action = typeof body.rawYaml === 'string' ? 'config.raw-write' : 'config.soul-write';
+      const decision = authorizeAction(action, body.confirmation);
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.reason, risk: decision.risk, action }, { status: decision.status });
+      }
+    }
     const configPath = path.join(HERMES_HOME, 'config.yaml');
     const soulPath = path.join(HERMES_HOME, 'SOUL.md');
 
