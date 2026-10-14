@@ -7,8 +7,7 @@ import { authorizeAction } from '@/lib/action-policy';
 
 const execFileAsync = promisify(execFile);
 
-// Conservative read-only diagnostic command prefixes; never expose a general-purpose shell
-
+// Strict read-only diagnostic allowlist; never expose a general-purpose shell
 
 function parseCommand(command: string): string[] | null {
   // Reject shell operators and execute the parsed arguments directly with execFile.
