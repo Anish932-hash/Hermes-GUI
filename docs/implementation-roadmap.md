@@ -28,10 +28,11 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 
 ## Phase 2 — Secure action and permission model
 
-- [ ] Classify actions as read-only, routine/reversible, sensitive, or destructive.
-- [ ] Enforce authorization and validation server-side, not only in UI controls.
-- [ ] Require explicit confirmation for sensitive/destructive actions; provide a cancel path and explain the target.
-- [ ] Add tests proving blocked requests cannot reach execution handlers.
+- [x] Add a central action-risk registry for read-only, routine, sensitive, and destructive action classes; unknown actions fail closed.
+- [ ] Extend server-side policy enforcement to every mutating API (current enforcement covers gateway start/stop/restart and system optimization; other mutation routes still need auditing).
+- [x] Require exact-action confirmation for sensitive gateway stop/restart and system optimization, with a client cancel path and target-impact explanation.
+- [x] Add policy tests proving denied requests cannot reach the execution callback.
+- [ ] Audit remaining mutating endpoints and validate confirmation flows manually before calling this phase complete.
 
 ## Phase 3 — Universal launcher and keyboard navigation
 
