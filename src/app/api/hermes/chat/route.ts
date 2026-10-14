@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     if (typeof message !== 'string' || !message.trim() || message.length > 20000) {
       return NextResponse.json({ error: 'Message must contain 1–20000 characters' }, { status: 400 });
     }
-    if (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.length > 256 || [...sessionId].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
+    if (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.length > 256 || !/^[A-Za-z0-9_-]+$/.test(sessionId))) {
       return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
     }
     if (model !== undefined && (typeof model !== 'string' || model.length > 160 || [...model].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
