@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
 
 const execAsync = promisify(exec);
 
@@ -335,6 +336,12 @@ export async function GET(req: Request) {
 export async function POST(req: NextRequest) {
   if (!isLocalRequest(req)) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const decision = authorizeAction('system.auto-setup', body.confirmation);
+  if (!decision.allowed) {
+    return NextResponse.json({ error: decision.reason, risk: decision.risk, action: 'system.auto-setup' }, { status: decision.status });
   }
 
   const actions: Array<{ step: string; status: 'SUCCESS' | 'SKIPPED' | 'WARNING'; message: string }> = [];
