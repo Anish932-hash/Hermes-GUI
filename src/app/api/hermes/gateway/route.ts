@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { manageGateway, getGatewayLogs } from '@/lib/hermes';
+import { manageGateway } from '@/lib/hermes';
 
 import { isLocalRequest } from '@/lib/local-request';
 import { runAuthorizedAction } from '@/lib/action-policy';
@@ -11,12 +11,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
   try {
-    const logs = await getGatewayLogs(40);
     const status = await manageGateway('status');
+    const active = status.output?.includes('active (running)') || false;
     return NextResponse.json({
-      active: status.output?.includes('active (running)') || false,
-      output: status.output,
-      logs,
+      active,
+      output: status.output
+        ? 'Gateway status was checked. Detailed service output is hidden to avoid exposing local paths or secrets.'
+        : 'No detailed gateway status is available.',
+      logs: 'Raw gateway logs are not exposed through this endpoint because they may contain prompts, provider output, or secrets.',
     });
   } catch {
     return NextResponse.json({ error: 'The requested Hermes operation failed' }, { status: 500 });
