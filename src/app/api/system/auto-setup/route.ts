@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spawn, execFile } from 'child_process';
+import { spawn, exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
@@ -7,6 +7,7 @@ import os from 'os';
 import { isLocalRequest } from '@/lib/local-request';
 import { authorizeAction } from '@/lib/action-policy';
 
+const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 export const dynamic = 'force-dynamic';
