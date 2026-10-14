@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       apiKey: clientApiKey,
     } = body;
 
-    if (typeof languageCode !== 'string' || languageCode.length > 32 || /[\\u0000-\\u001f\\u007f]/.test(languageCode)) {
+    if (typeof languageCode !== 'string' || languageCode.length > 32 || [...languageCode].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
       return NextResponse.json({ error: 'Invalid language code' }, { status: 400 });
     }
     if (typeof pace !== 'number' || !Number.isFinite(pace) || pace < 0.5 || pace > 2) {
@@ -32,10 +32,10 @@ export async function POST(req: NextRequest) {
     if (typeof pitch !== 'number' || !Number.isFinite(pitch) || pitch < -20 || pitch > 20) {
       return NextResponse.json({ error: 'Pitch must be a finite number between -20 and 20' }, { status: 400 });
     }
-    if (requestedSpeaker !== undefined && (typeof requestedSpeaker !== 'string' || requestedSpeaker.length > 64 || /[\\u0000-\\u001f\\u007f]/.test(requestedSpeaker))) {
+    if (requestedSpeaker !== undefined && (typeof requestedSpeaker !== 'string' || requestedSpeaker.length > 64 || [...requestedSpeaker].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
       return NextResponse.json({ error: 'Invalid speaker identifier' }, { status: 400 });
     }
-    if (clientApiKey != null && (typeof clientApiKey !== 'string' || clientApiKey.length > 512 || /[\\u0000-\\u001f\\u007f]/.test(clientApiKey))) {
+    if (clientApiKey != null && (typeof clientApiKey !== 'string' || clientApiKey.length > 512 || [...clientApiKey].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
       return NextResponse.json({ error: 'Invalid API key field' }, { status: 400 });
     }
 
