@@ -439,7 +439,7 @@ export async function POST(req: NextRequest) {
         actions.push({
           step: 'SQLITE_WAL_CHECKPOINT',
           status: 'SUCCESS',
-          message: 'SQLite WAL checkpoint passive flush verified for state.db.',
+          message: 'Passive SQLite WAL checkpoint command completed; full checkpoint status depends on database activity.',
         });
       } catch (e: any) {
         actions.push({
