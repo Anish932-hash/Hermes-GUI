@@ -51,6 +51,10 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Reject malformed audio JSON rather than silently falling back to the default test-tone action.
 - [x] Reject malformed JSON in Windows bridge and Wispr Flow control routes instead of defaulting to an empty action payload.
 - [x] Distinguish successful process creation from verified service readiness in auto-setup results.
+- [x] Replace shell-interpolated SQLite, gateway-control, and process-telemetry commands with direct argument-based process APIs where applicable.
+- [x] Sanitize internal exception details from Windows app launch/discovery, Windows bridge, Wispr Flow, audio diagnostics, system optimization, and auto-setup responses.
+- [x] Preserve the WSL interface binding when auto-setup launches the Cesium development server.
+- [x] Avoid echoing raw configuration request bodies in successful config-update responses and reject conflicting raw-YAML/SOUL write payloads.
 - [x] Keep the God's Eye status GET endpoint read-only; status polling no longer starts services implicitly.
 - [x] Bound Wispr Flow dictation limits and request fields; reject unknown actions instead of silently treating them as status checks.
 - [ ] Finish the remaining mutation-endpoint audit, add targeted route tests, and validate confirmation flows manually before calling this phase complete.
