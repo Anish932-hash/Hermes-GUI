@@ -55,6 +55,7 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Sanitize internal exception details from Windows app launch/discovery, Windows bridge, Wispr Flow, audio diagnostics, system optimization, auto-setup, and Hermes CLI failure responses; avoid logging raw Hermes process errors that may contain prompts or secrets.
 - [x] Preserve the WSL interface binding when auto-setup launches the Cesium development server.
 - [x] Avoid echoing raw configuration request bodies in successful config-update responses and reject conflicting raw-YAML/SOUL write payloads.
+- [x] Validate session IDs at the message-history API boundary and again before database lookup.
 - [x] Keep the God's Eye status GET endpoint read-only; status polling no longer starts services implicitly.
 - [x] Bound Wispr Flow dictation limits and request fields; reject unknown actions instead of silently treating them as status checks.
 - [ ] Finish the remaining mutation-endpoint audit, add targeted route tests, and validate confirmation flows manually before calling this phase complete.
