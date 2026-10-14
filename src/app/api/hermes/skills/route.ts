@@ -12,9 +12,9 @@ export async function GET(req: Request) {
   try {
     const skills = await getHermesSkills();
     return NextResponse.json({ skills });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: error.message || 'Failed to get Hermes skills', skills: [] },
+      { error: 'Failed to retrieve Hermes skills', skills: [] },
       { status: 500 }
     );
   }
