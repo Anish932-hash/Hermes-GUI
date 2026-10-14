@@ -30,6 +30,9 @@ jobs:
       - name: Check Electron entrypoint syntax
         run: node --check windows/main.js
 
+      - name: Unit and security tests
+        run: npm test
+
       - name: Typecheck
         run: npm run typecheck
 
