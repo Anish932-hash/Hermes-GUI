@@ -6,6 +6,7 @@ import path from 'path';
 import os from 'os';
 
 import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
 
 const execFileAsync = promisify(execFile);
 
@@ -206,6 +207,10 @@ export async function POST(req: NextRequest) {
       }
 
       case 'restart-daemons': {
+        const decision = authorizeAction('windows.restart-daemons', body.confirmation);
+        if (!decision.allowed) {
+          return NextResponse.json({ error: decision.reason, risk: decision.risk, action }, { status: decision.status });
+        }
         const scriptPath = process.env.HERMES_MANAGE_SCRIPT ||
           path.join(os.homedir(), '.gemini', 'antigravity', 'scratch', 'studio', 'scripts', 'manage-services.sh');
         await execFileAsync('bash', [scriptPath, 'restart'], { timeout: 25000, windowsHide: true });
