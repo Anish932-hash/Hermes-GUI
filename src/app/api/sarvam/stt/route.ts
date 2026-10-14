@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid language code' }, { status: 400 });
     }
     const rawApiKey = formData.get('apiKey');
-    if (rawApiKey !== null && (typeof rawApiKey !== 'string' || rawApiKey.length > 512 || /[\\u0000-\\u001f\\u007f]/.test(rawApiKey))) {
+    if (rawApiKey !== null && (typeof rawApiKey !== 'string' || rawApiKey.length > 512 || [...rawApiKey].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
       return NextResponse.json({ error: 'Invalid API key field' }, { status: 400 });
     }
     const clientApiKey = typeof rawApiKey === 'string' ? rawApiKey : null;
