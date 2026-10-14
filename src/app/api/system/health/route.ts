@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getHermesStatus } from '@/lib/hermes';
 import { listKaliApplications } from '@/lib/app-launcher';
-import { getWisprStatus } from '@/lib/wispr-flow';
+import { isWisprProcessRunning } from '@/lib/wispr-flow';
 import { isLocalRequest } from '@/lib/local-request';
 
 export const dynamic = 'force-dynamic';
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
     getHermesStatus(),
     checkGodsEye(),
     Promise.resolve().then(() => listKaliApplications().length),
-    getWisprStatus(),
+    isWisprProcessRunning(),
   ]);
 
   const hermesResult = checks[0];
@@ -122,16 +122,10 @@ export async function GET(req: Request) {
     item(
       'wispr',
       'Wispr Flow',
-      wisprResult.status === 'fulfilled'
-        ? wisprResult.value.running ? 'online' : wisprResult.value.installed ? 'degraded' : 'unknown'
-        : 'unknown',
-      wisprResult.status === 'fulfilled'
-        ? wisprResult.value.running
-          ? 'Installed and running on the Windows host.'
-          : wisprResult.value.installed
-            ? 'Installed, but not currently running.'
-            : 'Installation could not be confirmed on the Windows host.'
-        : 'Windows host status could not be queried from this runtime.'
+      wisprResult.status === 'fulfilled' && wisprResult.value ? 'online' : 'unknown',
+      wisprResult.status === 'fulfilled' && wisprResult.value
+        ? 'Wispr Flow process detected on the Windows host.'
+        : 'Wispr Flow process was not detected; installation state is not checked here.'
     ),
     item(
       'sarvam',
