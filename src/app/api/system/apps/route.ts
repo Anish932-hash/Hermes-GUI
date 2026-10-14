@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
 import { launchAppFromText, listKaliApplications, listWindowsApplications } from '@/lib/app-launcher';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,10 @@ export async function POST(req: Request) {
   const command = typeof body.command === 'string' ? body.command : '';
   if (!command || command.length > 500) {
     return NextResponse.json({ error: 'Provide a launch command up to 500 characters.' }, { status: 400 });
+  }
+  const decision = authorizeAction('apps.launch');
+  if (!decision.allowed) {
+    return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
   }
   const result = await launchAppFromText(command);
   if (!result) return NextResponse.json({ error: 'Command must start with open, launch, start, or run.' }, { status: 400 });
