@@ -7,6 +7,8 @@ import {
 } from '@/lib/wispr-flow';
 
 import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
+import { MAX_DICTATION_LIMIT, parseDictationLimit } from '@/lib/wispr-flow-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +72,12 @@ export async function POST(req: NextRequest) {
       !['launch', 'ptt', 'trigger', 'sync', 'status'].includes(action)
     ) {
       return NextResponse.json({ error: 'Unknown Wispr Flow action' }, { status: 400 });
+    }
+
+    const policyAction = action === 'status' ? 'wispr.status' : action === 'launch' ? 'wispr.launch' : action === 'sync' ? 'wispr.sync' : action === 'ptt' ? 'wispr.ptt' : 'wispr.trigger';
+    const decision = authorizeAction(policyAction);
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.reason, risk: decision.risk, action }, { status: decision.status });
     }
 
     if (action === 'launch') {
