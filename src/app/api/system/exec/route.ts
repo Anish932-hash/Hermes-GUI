@@ -3,10 +3,11 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { HERMES_PATH } from '@/lib/hermes';
 import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
 
 const execFileAsync = promisify(execFile);
 
-// Allowed command list prefixes or safe commands to run in WSL
+// Conservative read-only diagnostic command prefixes; never expose a general-purpose shell
 const SAFE_PREFIXES = [
   'uname',
   'uptime',
@@ -19,21 +20,13 @@ const SAFE_PREFIXES = [
   'id',
   'ls',
   'pwd',
-  'cat',
-  'head',
-  'tail',
-  'grep',
-  'echo',
   'date',
   'ip',
   'netstat',
   'ss',
-  'hermes',
   'systemctl status',
   'which',
   'git status',
-  'git diff',
-  'git log',
   'git branch --show-current',
 ];
 
@@ -86,7 +79,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { command } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const decision = authorizeAction('system.exec.diagnostic');
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
+    }
+    const command = body?.command;
     if (!command || typeof command !== 'string') {
       return NextResponse.json({ error: 'Command string is required' }, { status: 400 });
     }
@@ -121,7 +119,13 @@ export async function POST(req: Request) {
     }
 
     const args = parseCommand(trimmed);
-    if (!args || !isAllowedCommand(args)) {
+    if (
+      !args ||
+      args.length > 12 ||
+      args.some((arg) => arg.length > 256 || /[\\u0000-\\u001f\\u007f]/.test(arg)) ||
+      args.some((arg) => /^--?(?:output|exec|upload-pack|receive-pack|config|work-tree|git-dir)(?:=|$)/i.test(arg)) ||
+      !isAllowedCommand(args)
+    ) {
       return NextResponse.json(
         {
           stdout: '',
