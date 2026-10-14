@@ -11,6 +11,10 @@ const RISK_BY_ACTION: Record<string, ActionRisk> = {
   'gateway.stop': 'sensitive',
   'gateway.restart': 'sensitive',
   'system.boost': 'sensitive',
+  'system.auto-setup': 'sensitive',
+  'windows.restart-daemons': 'sensitive',
+  'config.raw-write': 'sensitive',
+  'config.soul-write': 'sensitive',
   'system.exec.diagnostic': 'routine',
   'system.exec.mutation': 'destructive',
 };
@@ -19,15 +23,8 @@ export function classifyAction(action: string): ActionRisk | null {
   return RISK_BY_ACTION[action] ?? null;
 }
 
-/**
- * This is enforced by API handlers, not just by UI confirmation controls.
- * The client must explicitly acknowledge the exact action target before a
- * sensitive or destructive operation can reach its execution handler.
- */
-export function authorizeAction(
-  action: string,
-  confirmation?: unknown,
-): ActionDecision {
+/** Enforced by API handlers, never only by UI confirmation controls. */
+export function authorizeAction(action: string, confirmation?: unknown): ActionDecision {
   const risk = classifyAction(action);
   if (!risk) {
     return { allowed: false, risk: 'destructive', status: 403, reason: 'Action is not registered in the permission policy.' };
@@ -37,7 +34,7 @@ export function authorizeAction(
     return { allowed: false, risk, status: 403, reason: 'Destructive actions are disabled until a dedicated safe workflow is implemented.' };
   }
 
-  if ((risk === 'sensitive') && confirmation !== action) {
+  if (risk === 'sensitive' && confirmation !== action) {
     return {
       allowed: false,
       risk,
@@ -49,10 +46,7 @@ export function authorizeAction(
   return { allowed: true, risk };
 }
 
-/**
- * Keep the policy check and execution boundary together so a denied action
- * cannot accidentally fall through to its side-effecting handler.
- */
+/** A denied action cannot fall through to its side-effecting handler. */
 export async function runAuthorizedAction<T>(
   action: string,
   confirmation: unknown,
