@@ -207,11 +207,26 @@ export async function POST(req: Request) {
     const action = body.action || 'test_tone';
 
     if (action === 'test_tone') {
-      const freq = body.frequency || 660;
-      const duration = body.duration || 0.4;
+      const freq = body.frequency === undefined ? 660 : body.frequency;
+      const duration = body.duration === undefined ? 0.4 : body.duration;
 
-      // Trigger a harmless test chirp inside WSL PulseAudio
-      exec(`sox -n -t pulseaudio default synth ${duration} sine ${freq} vol 0.35 2>/dev/null &`);
+      if (
+        typeof freq !== 'number' || !Number.isFinite(freq) || freq < 40 || freq > 20000 ||
+        typeof duration !== 'number' || !Number.isFinite(duration) || duration < 0.1 || duration > 2
+      ) {
+        return NextResponse.json(
+          { error: 'Test tone frequency must be 40–20000 Hz and duration must be 0.1–2 seconds.' },
+          { status: 400 },
+        );
+      }
+
+      // Spawn the binary with an argument array; never interpolate request data into a shell command.
+      const tone = spawn('sox', [
+        '-n', '-t', 'pulseaudio', 'default', 'synth',
+        String(duration), 'sine', String(freq), 'vol', '0.35',
+      ], { stdio: 'ignore', detached: true });
+      tone.on('error', () => {});
+      tone.unref();
 
       return NextResponse.json({
         success: true,
