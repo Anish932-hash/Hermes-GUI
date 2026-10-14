@@ -407,7 +407,7 @@ export async function performSystemBoost(): Promise<{
     }
   } catch {}
 
-  // 3. Clean stale audio/image caches
+  // 3. Remove audio synthesis cache files (only after explicit confirmation)
   try {
     const audioCacheDir = path.join(HERMES_HOME, 'audio_cache');
     if (fs.existsSync(audioCacheDir)) {
