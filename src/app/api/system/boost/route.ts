@@ -11,7 +11,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
     const execution = await runAuthorizedAction('system.boost', body.confirmation, () => performSystemBoost());
     if (!execution.allowed) {
       return NextResponse.json({ error: execution.reason, risk: execution.risk, action: 'system.boost' }, { status: execution.status });
