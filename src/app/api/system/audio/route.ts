@@ -4,6 +4,7 @@ import fs from 'fs';
 import { promisify } from 'util';
 
 import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
 
 const execAsync = promisify(exec);
 
@@ -204,9 +205,16 @@ export async function POST(req: Request) {
   }
   try {
     const body = await req.json().catch(() => ({}));
-    const action = body.action || 'test_tone';
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    const action = typeof body.action === 'string' ? body.action : 'test_tone';
 
     if (action === 'test_tone') {
+      const decision = authorizeAction('audio.test-tone');
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
+      }
       const freq = body.frequency === undefined ? 660 : body.frequency;
       const duration = body.duration === undefined ? 0.4 : body.duration;
 
@@ -235,6 +243,10 @@ export async function POST(req: Request) {
     }
 
     if (action === 'diagnostics') {
+      const decision = authorizeAction('audio.diagnostics');
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
+      }
       const { stdout: sinks } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sinks 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
       const { stdout: sources } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sources 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
       const { stdout: clients } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sink-inputs 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
