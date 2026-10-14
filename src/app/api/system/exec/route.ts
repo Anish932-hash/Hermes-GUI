@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import { HERMES_PATH } from '@/lib/hermes';
 import { isLocalRequest } from '@/lib/local-request';
 import { authorizeAction } from '@/lib/action-policy';
+import { isAllowedDiagnosticCommand } from '@/lib/system-exec-policy';
 
 const execFileAsync = promisify(execFile);
 
@@ -45,42 +46,6 @@ function parseCommand(command: string): string[] | null {
   return args.length ? args : null;
 }
 
-function isAllowedCommand(args: string[]): boolean {
-  // Exact command/argument shapes keep this endpoint diagnostic-only.
-  // In particular, don't let user-supplied paths or arbitrary flags turn
-  // a harmless command into a file reader or a state-changing operation.
-  const [command, ...rest] = args;
-  const exact = (expected: string[]) =>
-    rest.length === expected.length && rest.every((arg, index) => arg === expected[index]);
-  const noArgs = () => rest.length === 0;
-
-  switch (command) {
-    case 'uname': return noArgs() || exact(['-a']);
-    case 'uptime':
-    case 'whoami':
-    case 'id':
-    case 'pwd':
-    case 'date':
-    case 'w': return noArgs();
-    case 'free': return noArgs() || exact(['-h']) || exact(['-m']);
-    case 'df': return exact(['-h']);
-    case 'top': return exact(['-b', '-n', '1']);
-    case 'ps': return exact(['aux']) || exact(['-ef']);
-    case 'ls': return noArgs() || exact(['-la']);
-    case 'netstat': return exact(['-an']);
-    case 'ss': return exact(['-tuln']);
-    case 'ip':
-      return exact(['addr', 'show']) || exact(['route', 'show']);
-    case 'systemctl':
-      // Status only, with no pager or user-controlled service/unit argument.
-      return exact(['status', '--no-pager']);
-    case 'which':
-      return rest.length === 1 && ['node', 'npm', 'python3', 'git', 'hermes'].includes(rest[0]);
-    case 'git':
-      return exact(['status']) || exact(['branch', '--show-current']);
-    default: return false;
-  }
-}
 
 export async function POST(req: Request) {
   if (!isLocalRequest(req)) {
@@ -133,7 +98,7 @@ export async function POST(req: Request) {
       args.length > 12 ||
       args.some((arg) => arg.length > 256 || /[\u0000-\u001f\u007f]/.test(arg)) ||
       args.some((arg) => /^--?(?:output|exec|upload-pack|receive-pack|config|work-tree|git-dir)(?:=|$)/i.test(arg)) ||
-      !isAllowedCommand(args)
+      !isAllowedDiagnosticCommand(args)
     ) {
       return NextResponse.json(
         {
