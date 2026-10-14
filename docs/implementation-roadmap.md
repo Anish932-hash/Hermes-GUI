@@ -29,9 +29,11 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 ## Phase 2 — Secure action and permission model
 
 - [x] Add a central action-risk registry for read-only, routine, sensitive, and destructive action classes; unknown actions fail closed.
-- [ ] Extend server-side policy enforcement to every mutating API (current enforcement covers gateway start/stop/restart and system optimization; other mutation routes still need auditing).
+- [ ] Extend server-side policy enforcement to every mutating API (gateway actions, system optimization, auto-setup, daemon restart, and raw config/SOUL writes are now gated; remaining actions still need a complete audit).
 - [x] Require exact-action confirmation for sensitive gateway stop/restart and system optimization, with a client cancel path and target-impact explanation.
 - [x] Add policy tests proving denied requests cannot reach the execution callback.
+- [x] Remove automatic background remediation from the diagnostics polling path; auto-setup now runs only after an explicit confirmation.
+- [x] Replace interpolated shell execution for audio test tones with bounded input validation and direct argument spawning.
 - [ ] Audit remaining mutating endpoints and validate confirmation flows manually before calling this phase complete.
 
 ## Phase 3 — Universal launcher and keyboard navigation
