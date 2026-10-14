@@ -1,17 +1,33 @@
 import { NextResponse } from 'next/server';
 import { performSystemBoost } from '@/lib/hermes';
 
+import { isLocalRequest } from '@/lib/local-request';
+import { runAuthorizedAction } from '@/lib/action-policy';
+
 export const dynamic = 'force-dynamic';
 
-export async function POST() {
+export async function POST(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
-    const result = await performSystemBoost();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    const execution = await runAuthorizedAction('system.boost', body.confirmation, () => performSystemBoost());
+    if (!execution.allowed) {
+      return NextResponse.json({ error: execution.reason, risk: execution.risk, action: 'system.boost' }, { status: execution.status });
+    }
+    const result = execution.result;
     return NextResponse.json({
       success: true,
       ...result,
-      message: `Optimization completed. Observed memory decrease: ${result.freedMB} MB.`,
+      message: result.freedMB === null
+        ? 'Maintenance completed, but RAM change could not be measured.'
+        : `Maintenance completed. Observed memory decrease: ${result.freedMB} MB.`,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'System optimization failed' }, { status: 500 });
   }
 }

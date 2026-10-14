@@ -97,8 +97,10 @@ Install the Electron dependency from the `windows/` directory with `npm install`
 | --- | --- |
 | `/api/hermes/*` | Chat, Gateway and config status, commands, skills, sessions, and session history |
 | `/api/sarvam/*` | Speech-to-text and text-to-speech proxy routes |
-| `/api/system/*` | Metrics, audio, system actions, setup, Windows bridge, and Wispr Flow status |
+| `/api/system/*` | Metrics, audio, system actions, setup, Windows bridge, Start Menu app discovery/launch, and Wispr Flow status |
 | `/api/godseye/*` | God's Eye service status and geocoding |
+
+Windows app discovery and launch are available through `GET /api/system/windows-apps` and `POST /api/system/windows-apps` with `{ "name": "Notepad" }`. The unified `GET /api/system/apps` endpoint discovers Windows applications and Kali Linux `.desktop` launchers. Natural-language app requests are routed through the same `/api/hermes/chat` endpoint used by text chat and Voice HUD, so commands such as `open Notepad`, `open VS Code in Windows`, or `open Wireshark in Kali` use the same launcher. Windows launch is restricted to registered apps, App Paths, and Start Menu shortcuts; Kali launch is restricted to discovered desktop-entry IDs and does not execute arbitrary user-provided shell commands. Some Linux GUI applications require WSLg and a valid desktop launcher.
 
 See [the architecture blueprint](docs/blueprint.md) for the request flow, key source files, and service boundaries.
 

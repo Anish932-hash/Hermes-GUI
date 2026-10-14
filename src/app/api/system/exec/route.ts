@@ -1,51 +1,67 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { HERMES_PATH } from '@/lib/hermes';
+import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
+import { isAllowedDiagnosticCommand } from '@/lib/system-exec-policy';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
-// Allowed command list prefixes or safe commands to run in WSL
-const SAFE_PREFIXES = [
-  'uname',
-  'uptime',
-  'free',
-  'df',
-  'top',
-  'ps',
-  'w',
-  'whoami',
-  'id',
-  'ls',
-  'pwd',
-  'cat',
-  'head',
-  'tail',
-  'grep',
-  'echo',
-  'date',
-  'ip',
-  'netstat',
-  'ss',
-  'hermes',
-  'systemctl status',
-  'which',
-  'git status',
-  'git diff',
-  'git log',
-  'git branch --show-current',
-];
+// Strict read-only diagnostic allowlist; never expose a general-purpose shell
 
-function isAllowedCommand(command: string): boolean {
-  // This endpoint invokes a shell for the interactive terminal. Do not allow
-  // shell composition, substitutions, redirection, or newlines.
-  if (/[;&|<>`$()\n\r]/.test(command)) return false;
-  return SAFE_PREFIXES.some((prefix) => command === prefix || command.startsWith(`${prefix} `));
+function parseCommand(command: string): string[] | null {
+  // Reject shell operators and execute the parsed arguments directly with execFile.
+  if (/[;&|<>\x60$()\n\r]/.test(command)) return null;
+
+  const args: string[] = [];
+  let token = '';
+  let quote: "'" | '"' | null = null;
+  let started = false;
+
+  for (const char of command) {
+    if (quote) {
+      if (char === quote) quote = null;
+      else token += char;
+      started = true;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      started = true;
+    } else if (/\s/.test(char)) {
+      if (started) {
+        args.push(token);
+        token = '';
+        started = false;
+      }
+    } else {
+      token += char;
+      started = true;
+    }
+  }
+
+  if (quote) return null;
+  if (started) args.push(token);
+  return args.length ? args : null;
 }
 
+
 export async function POST(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
   try {
-    const { command } = await req.json();
+    const body: unknown = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    const decision = authorizeAction('system.exec.diagnostic');
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
+    }
+    const command = (body as Record<string, unknown>).command;
     if (!command || typeof command !== 'string') {
       return NextResponse.json({ error: 'Command string is required' }, { status: 400 });
     }
@@ -79,7 +95,14 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!isAllowedCommand(trimmed)) {
+    const args = parseCommand(trimmed);
+    if (
+      !args ||
+      args.length > 12 ||
+      args.some((arg) => arg.length > 256 || /[\u0000-\u001f\u007f]/.test(arg)) ||
+      args.some((arg) => /^--?(?:output|exec|upload-pack|receive-pack|config|work-tree|git-dir)(?:=|$)/i.test(arg)) ||
+      !isAllowedDiagnosticCommand(args)
+    ) {
       return NextResponse.json(
         {
           stdout: '',
@@ -90,7 +113,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { stdout, stderr } = await execAsync(trimmed, {
+    const { stdout, stderr } = await execFileAsync(args[0], args.slice(1), {
       env: {
         ...process.env,
         PATH: HERMES_PATH,
@@ -106,11 +129,17 @@ export async function POST(req: Request) {
       exitCode: 0,
       executedAt: new Date().toISOString(),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    // A failed diagnostic may include partial process output or internal paths.
+    // Keep the browser response useful without echoing raw process errors.
+    const code = typeof err === 'object' && err !== null && 'code' in err
+      ? (err as { code?: unknown }).code
+      : undefined;
+    const exitCode = typeof code === 'number' && Number.isInteger(code) ? code : 1;
     return NextResponse.json({
-      stdout: err.stdout || '',
-      stderr: err.stderr || err.message || 'Execution error',
-      exitCode: err.code || 1,
+      stdout: '',
+      stderr: 'Diagnostic command failed or timed out. Check local service logs for details.',
+      exitCode,
       executedAt: new Date().toISOString(),
     });
   }

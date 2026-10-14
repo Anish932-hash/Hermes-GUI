@@ -1,24 +1,25 @@
-import { execFile, exec, execSync } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { resolveLocationCoordinates, GODS_EYE_PRESETS, extractGodsEyeTarget } from './godseye';
+import { observedMemoryDecrease } from './system-boost-policy';
 
 export const execFileAsync = promisify(execFile);
-export const execAsync = promisify(exec);
 
-export const HERMES_BIN = '/home/thecyberexpert/.hermes/hermes-agent/.hermes/bin/hermes';
-export const HERMES_HOME = '/home/thecyberexpert/.hermes';
-export const HERMES_PATH =
-  '/home/thecyberexpert/.hermes/tools/python-3.14.7+20260901-linux-x64/bin:' +
-  '/home/thecyberexpert/.hermes/hermes-agent/.hermes/bin:' +
-  '/home/thecyberexpert/.hermes/hermes-agent/node_modules/.bin:' +
-  '/home/thecyberexpert/.hermes/tools/node-26.7.0-linux-x64/bin:' +
-  '/home/thecyberexpert/.hermes/tools/npm-12.0.2-linux-x64/bin:' +
-  '/home/thecyberexpert/.local/bin:' +
-  '/home/thecyberexpert/.cargo/bin:' +
-  (process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin');
+export const HERMES_HOME = process.env.HERMES_HOME || path.join(os.homedir(), '.hermes');
+export const HERMES_BIN = process.env.HERMES_BIN || path.join(HERMES_HOME, 'hermes-agent', '.hermes', 'bin', 'hermes');
+export const HERMES_PATH = [
+  path.join(HERMES_HOME, 'tools', 'python-3.14.7+20260901-linux-x64', 'bin'),
+  path.join(HERMES_HOME, 'hermes-agent', '.hermes', 'bin'),
+  path.join(HERMES_HOME, 'hermes-agent', 'node_modules', '.bin'),
+  path.join(HERMES_HOME, 'tools', 'node-26.7.0-linux-x64', 'bin'),
+  path.join(HERMES_HOME, 'tools', 'npm-12.0.2-linux-x64', 'bin'),
+  path.join(os.homedir(), '.local', 'bin'),
+  path.join(os.homedir(), '.cargo', 'bin'),
+  process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+].join(path.delimiter);
 
 export interface HermesStatus {
   version: string;
@@ -118,7 +119,7 @@ export async function getHermesStatus(): Promise<HermesStatus> {
   let sessionsCount = 0;
 
   try {
-    const serviceState = (await execAsync('systemctl --user is-active hermes-gateway')).stdout.trim();
+    const serviceState = (await execFileAsync('systemctl', ['--user', 'is-active', 'hermes-gateway'], { timeout: 3000, maxBuffer: 8192 })).stdout.trim();
     if (serviceState === 'active') gatewayState = 'running';
     else if (serviceState === 'inactive' || serviceState === 'failed') gatewayState = 'stopped';
   } catch (error: any) {
@@ -178,8 +179,9 @@ export async function getHermesStatus(): Promise<HermesStatus> {
   try {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
-      const countRes = await execAsync(`sqlite3 -cmd ".timeout 2000" "${dbPath}" "SELECT count(*) FROM sessions;"`, {
+      const countRes = await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', dbPath, 'SELECT count(*) FROM sessions;'], {
         timeout: 4000,
+        maxBuffer: 8192,
       });
       sessionsCount = parseInt(countRes.stdout.trim(), 10) || sessionsCount;
     }
@@ -207,8 +209,9 @@ export async function getHermesSessions(): Promise<HermesSessionItem[]> {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
       const query = `SELECT id, COALESCE(title, id), datetime(last_activity_at, 'unixepoch'), COALESCE(cwd, '—'), message_count FROM sessions ORDER BY last_activity_at DESC LIMIT 35;`;
-      const { stdout } = await execAsync(`sqlite3 -cmd ".timeout 2000" -separator '|' "${dbPath}" "${query}"`, {
+      const { stdout } = await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', '-separator', '|', dbPath, query], {
         timeout: 5000,
+        maxBuffer: 1024 * 1024,
       });
 
       const lines = stdout.split('\n').filter(Boolean);
@@ -240,10 +243,12 @@ export async function getSessionMessages(sessionId: string): Promise<Array<{ rol
   try {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
-      const safeId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (sessionId.length > 256 || !/^[a-zA-Z0-9_-]+$/.test(sessionId)) return [];
+      const safeId = sessionId;
       const query = `SELECT role, content FROM messages WHERE session_id = '${safeId}' AND role IN ('user', 'assistant') ORDER BY id ASC LIMIT 100;`;
-      const { stdout } = await execAsync(`sqlite3 -cmd ".timeout 2000" -separator '|---MSG---|' "${dbPath}" "${query}"`, {
+      const { stdout } = await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', '-separator', '|---MSG---|', dbPath, query], {
         timeout: 5000,
+        maxBuffer: 4 * 1024 * 1024,
       });
 
       const rows = stdout.split('\n').filter(Boolean);
@@ -337,28 +342,28 @@ export async function getHermesSkills(): Promise<HermesSkillItem[]> {
 export async function manageGateway(action: 'start' | 'stop' | 'restart' | 'status'): Promise<{ success: boolean; message: string; output?: string }> {
   try {
     if (action === 'status') {
-      const { stdout } = await execAsync('systemctl --user status hermes-gateway --no-pager');
+      const { stdout } = await execFileAsync('systemctl', ['--user', 'status', 'hermes-gateway', '--no-pager'], { timeout: 5000, maxBuffer: 128 * 1024 });
       return { success: true, message: 'Status retrieved', output: stdout };
     }
 
-    const { stdout, stderr } = await execAsync(`systemctl --user ${action} hermes-gateway`);
+    const { stdout, stderr } = await execFileAsync('systemctl', ['--user', action, 'hermes-gateway'], { timeout: 10000, maxBuffer: 64 * 1024 });
     return {
       success: true,
       message: `Gateway ${action} executed successfully.`,
       output: stdout || stderr,
     };
-  } catch (err: any) {
+  } catch {
     return {
       success: false,
-      message: `Failed to ${action} gateway: ${err.message}`,
-      output: err.stderr || err.stdout,
+      message: `Failed to ${action} gateway. Check local diagnostics for details.`,
     };
   }
 }
 
 export async function getGatewayLogs(limit = 40): Promise<string> {
   try {
-    const { stdout } = await execAsync(`journalctl --user -u hermes-gateway -n ${limit} --no-pager`);
+    const safeLimit = Number.isInteger(limit) ? Math.min(200, Math.max(1, limit)) : 40;
+    const { stdout } = await execFileAsync('journalctl', ['--user', '-u', 'hermes-gateway', '-n', String(safeLimit), '--no-pager'], { timeout: 5000, maxBuffer: 512 * 1024 });
     return stdout;
   } catch {
     const agentLogPath = path.join(HERMES_HOME, 'logs', 'agent.log');
@@ -371,15 +376,15 @@ export async function getGatewayLogs(limit = 40): Promise<string> {
 }
 
 export async function performSystemBoost(): Promise<{
-  freedMB: number;
-  beforeRamMB: number;
-  afterRamMB: number;
+  freedMB: number | null;
+  beforeRamMB: number | null;
+  afterRamMB: number | null;
   details: string[];
 }> {
   const details: string[] = [];
 
   // Read initial memory
-  let beforeRamMB = 1000;
+  let beforeRamMB: number | null = null;
   try {
     const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
     const totalMatch = meminfo.match(/MemTotal:\s+(\d+)/);
@@ -391,7 +396,7 @@ export async function performSystemBoost(): Promise<{
 
   // 1. Sync disk filesystem buffers
   try {
-    await execAsync('sync');
+    await execFileAsync('sync', [], { timeout: 5000 });
     details.push('Filesystem cache buffers flushed to disk via sync');
   } catch {}
 
@@ -403,17 +408,20 @@ export async function performSystemBoost(): Promise<{
     }
   } catch {}
 
-  // 3. Clean stale audio/image caches
+  // 3. Remove audio synthesis cache files (only after explicit confirmation)
   try {
     const audioCacheDir = path.join(HERMES_HOME, 'audio_cache');
     if (fs.existsSync(audioCacheDir)) {
-      const files = fs.readdirSync(audioCacheDir);
-      for (const file of files) {
+      const entries = fs.readdirSync(audioCacheDir, { withFileTypes: true });
+      let removedFiles = 0;
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
         try {
-          fs.unlinkSync(path.join(audioCacheDir, file));
+          fs.unlinkSync(path.join(audioCacheDir, entry.name));
+          removedFiles += 1;
         } catch {}
       }
-      if (files.length > 0) details.push(`Purged ${files.length} expired audio synthesis cache blocks`);
+      if (removedFiles > 0) details.push(`Removed ${removedFiles} audio synthesis cache files`);
     }
   } catch {}
 
@@ -421,15 +429,16 @@ export async function performSystemBoost(): Promise<{
   try {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
-      await execAsync(`sqlite3 -cmd ".timeout 2000" "${dbPath}" "PRAGMA wal_checkpoint(PASSIVE);"`, {
+      await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', dbPath, 'PRAGMA wal_checkpoint(PASSIVE);'], {
         timeout: 4000,
+        maxBuffer: 8192,
       });
-      details.push('Compacted Hermes SQLite WAL memory journals');
+      details.push('Ran a passive SQLite WAL checkpoint');
     }
   } catch {}
 
   // Read after memory
-  let afterRamMB = beforeRamMB;
+  let afterRamMB: number | null = null;
   try {
     const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
     const totalMatch = meminfo.match(/MemTotal:\s+(\d+)/);
@@ -441,7 +450,7 @@ export async function performSystemBoost(): Promise<{
 
   // Report only an observed decrease. sync and a WAL checkpoint do not guarantee
   // that Linux will release memory, so a minimum/fixed value is misleading.
-  const freedMB = Math.max(0, beforeRamMB - afterRamMB);
+  const freedMB = observedMemoryDecrease(beforeRamMB, afterRamMB);
 
   return {
     freedMB,
@@ -614,8 +623,17 @@ ${rows}
     (lower.includes('security') && lower.includes('audit'))
   ) {
     try {
-      const { stdout: netstatOut } = await execAsync('ss -tuln 2>/dev/null || netstat -tuln 2>/dev/null || true');
-      const { stdout: unameOut } = await execAsync('uname -a 2>/dev/null || true');
+      let netstatOut = '';
+      try {
+        ({ stdout: netstatOut } = await execFileAsync('ss', ['-tuln'], { timeout: 3000, maxBuffer: 64 * 1024 }));
+      } catch {
+        try {
+          ({ stdout: netstatOut } = await execFileAsync('netstat', ['-tuln'], { timeout: 3000, maxBuffer: 64 * 1024 }));
+        } catch {
+          netstatOut = '';
+        }
+      }
+      const { stdout: unameOut } = await execFileAsync('uname', ['-a'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: '' }));
       const lines = netstatOut.split('\n').filter((l) => l.includes('LISTEN')).slice(0, 8);
       const telemetry = getSystemTelemetry();
       return {
@@ -650,13 +668,10 @@ ${lines.join('\n') || 'No listening sockets were reported by ss/netstat.'}
     lower.includes('purge memory') ||
     lower.includes('purge dirty memory')
   ) {
-    const optimization = await performSystemBoost();
+    // Do not let natural-language shortcuts bypass the server-side confirmation
+    // required by POST /api/system/boost. This handler has no confirmation token.
     return {
-      text: `### ⚡ SYSTEM MAINTENANCE COMPLETE
-
-- **Observed memory decrease:** ${optimization.freedMB} MB
-- **RAM before / after:** ${optimization.beforeRamMB} MB / ${optimization.afterRamMB} MB
-- **Maintenance actions:** ${optimization.details.length ? optimization.details.join('; ') : 'No maintenance actions completed.'}`,
+      text: 'System maintenance was not started. It can remove local audio-cache files and perform database/filesystem maintenance, so it must be launched through the System Command Center with its explicit confirmation step. This chat request made no system changes.',
       sessionId: options.sessionId,
     };
   }
@@ -872,11 +887,10 @@ Please check the spelling or provide an alternative landmark or city name.`,
       sessionId,
     };
   } catch (err: any) {
-    console.error('Hermes CLI Execution Error:', err);
-    const stderr = err.stderr || '';
-    const stdout = err.stdout || '';
+    // Do not log the raw process error: it may contain prompts, provider output, or secrets.
+    const stdout = typeof err?.stdout === 'string' ? err.stdout : '';
 
-    if (stdout && stdout.trim()) {
+    if (stdout.trim()) {
       const sessionMatch = stdout.match(/session_id:\s*([a-zA-Z0-9_-]+)/);
       return {
         text: stdout.replace(/session_id:\s*[a-zA-Z0-9_-]+/, '').trim(),
@@ -885,10 +899,8 @@ Please check the spelling or provide an alternative landmark or city name.`,
     }
 
     return {
-      text:
-        `Hermes notice: ${stderr || err.message || 'Execution error'}.\n` +
-        `Verify model credentials or configuration in ~/.hermes/config.yaml.`,
-      error: err.message,
+      text: 'Hermes could not complete the request. Verify model credentials or configuration in ~/.hermes/config.yaml.',
+      error: 'Hermes CLI execution failed',
     };
   }
 }
@@ -1086,11 +1098,12 @@ export function getSystemTelemetry(): SystemTelemetry {
   // 9. Real Top Processes via live ps table
   const topProcesses: Array<ProcessInfo> = [];
   try {
-    const psOut = execSync('ps -eo pid,%cpu,%mem,comm --sort=-%cpu | head -n 14', {
+    const psOut = execFileSync('ps', ['-eo', 'pid,%cpu,%mem,comm', '--sort=-%cpu'], {
       encoding: 'utf8',
       timeout: 1000,
+      maxBuffer: 1024 * 1024,
     });
-    const lines = psOut.trim().split('\n').slice(1);
+    const lines = psOut.trim().split('\n').slice(1, 14);
     for (const line of lines) {
       const parts = line.trim().split(/\s+/);
       if (parts.length >= 4) {

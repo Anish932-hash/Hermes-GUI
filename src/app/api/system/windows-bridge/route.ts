@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
-const execAsync = promisify(exec);
+import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
+
+const execFileAsync = promisify(execFile);
+
 export const dynamic = 'force-dynamic';
 
 interface WindowsTelemetry {
@@ -25,36 +31,33 @@ let lastTelemetryTime = 0;
  * Uses -WindowStyle Hidden and -NonInteractive to guarantee NO console popups on Windows desktop
  */
 async function execOnWindows(psCommand: string): Promise<string> {
-  const { stdout } = await execAsync(
-    `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "${psCommand.replace(/"/g, '`"')}" < /dev/null`,
-    {
-      cwd: '/mnt/c',
-      timeout: 8000,
-      windowsHide: true,
-    }
+  const { stdout } = await execFileAsync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', psCommand],
+    { cwd: '/mnt/c', timeout: 8000, windowsHide: true, maxBuffer: 1024 * 512 }
   );
   return stdout.trim();
 }
 
 /**
- * Launch detached background process on Windows host via powershell.exe Start-Process
- * 100% hidden runtime
+ * Launch a fixed PowerShell command without passing it through a shell parser.
+ * Any user-supplied values must still be validated and quoted for PowerShell.
  */
 async function launchOnWindows(psCommand: string): Promise<void> {
-  await execAsync(
-    `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "${psCommand.replace(/"/g, '`"')}" < /dev/null`,
-    {
-      cwd: '/mnt/c',
-      timeout: 8000,
-      windowsHide: true,
-    }
+  await execFileAsync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', psCommand],
+    { cwd: '/mnt/c', timeout: 8000, windowsHide: true, maxBuffer: 1024 * 512 }
   );
 }
 
 /**
  * GET: Query Windows Host Telemetry & Subsystems (Cached & 100% Hidden)
  */
-export async function GET() {
+export async function GET(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   const now = Date.now();
   if (cachedTelemetry && now - lastTelemetryTime < 15000) {
     return NextResponse.json({
@@ -65,23 +68,19 @@ export async function GET() {
     });
   }
 
-  const appInstalled =
-    fs.existsSync('/mnt/c/Users/anish/Hermes-Agent-OS/Hermes-Agent-OS.exe') ||
-    fs.existsSync('/mnt/c/Users/anish/Hermes-Agent-OS/node_modules/electron/dist/electron.exe');
-
   const telemetry: WindowsTelemetry = {
     isWsl: fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop') || fs.existsSync('/mnt/c'),
-    windowsUser: 'anish',
+    windowsUser: process.env.USERNAME || 'unknown',
     hasWindowsTerminal: false,
     installedBrowsers: [],
-    distroName: 'kali-linux',
-    isStandaloneAppInstalled: appInstalled,
+    distroName: process.env.HERMES_WSL_DISTRO || 'kali-linux',
+    isStandaloneAppInstalled: false,
     isStandaloneAppRunning: false,
   };
 
   try {
     // Single consolidated hidden batch query for zero window flashing and fast response
-    const batchCmd = `$u = $env:USERNAME; $w = if (Get-Command wt.exe -ErrorAction SilentlyContinue) { (Get-Command wt.exe).Source } else { '' }; $e = if (Get-Process electron -ErrorAction SilentlyContinue) { 'RUNNING' } else { 'STOPPED' }; @{ user = $u; wt = $w; electron = $e } | ConvertTo-Json -Compress`;
+    const batchCmd = `$u = $env:USERNAME; $w = if (Get-Command wt.exe -ErrorAction SilentlyContinue) { (Get-Command wt.exe).Source } else { '' }; $e = if (Get-Process electron -ErrorAction SilentlyContinue) { 'RUNNING' } else { 'STOPPED' }; $root = Join-Path $env:USERPROFILE 'Hermes-Agent-OS'; $a = (Test-Path (Join-Path $root 'Hermes-Agent-OS.exe')) -or (Test-Path (Join-Path $root 'node_modules\\electron\\dist\\electron.exe')); @{ user = $u; wt = $w; electron = $e; appInstalled = $a } | ConvertTo-Json -Compress`;
     const rawJson = await execOnWindows(batchCmd);
     if (rawJson) {
       try {
@@ -92,10 +91,11 @@ export async function GET() {
           telemetry.windowsTerminalPath = String(parsed.wt).split('\n')[0].trim();
         }
         telemetry.isStandaloneAppRunning = parsed.electron === 'RUNNING';
+        telemetry.isStandaloneAppInstalled = parsed.appInstalled === true;
       } catch {}
     }
   } catch {
-    telemetry.windowsUser = 'anish';
+    telemetry.windowsUser = process.env.USERNAME || 'unknown';
   }
 
   // Probe installed browsers
@@ -125,12 +125,25 @@ export async function GET() {
  * POST: Execute Windows Host Action (100% Hidden)
  */
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
-    const body = await req.json().catch(() => ({}));
-    const action = body.action || '';
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    const action = typeof body.action === 'string' ? body.action : '';
+
+    const requireUiPolicy = (policyAction: string) => {
+      const decision = authorizeAction(policyAction);
+      return decision.allowed ? null : NextResponse.json({ error: decision.reason, risk: decision.risk, action }, { status: decision.status });
+    };
 
     switch (action) {
       case 'open-mic-settings': {
+        const denied = requireUiPolicy('windows.open-mic-settings');
+        if (denied) return denied;
         // Direct jump to Windows Microphone Privacy Settings
         const psCmd = "Start-Process 'ms-settings:privacy-microphone' -WindowStyle Hidden";
         await launchOnWindows(psCmd);
@@ -142,6 +155,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'open-sound-settings': {
+        const denied = requireUiPolicy('windows.open-sound-settings');
+        if (denied) return denied;
         // Opens Classic Windows Sound Recording Control Panel
         const psCmd = "Start-Process 'control.exe' -ArgumentList 'mmsys.cpl,,1' -WindowStyle Hidden";
         await launchOnWindows(psCmd);
@@ -153,6 +168,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'launch-kali': {
+        const denied = requireUiPolicy('windows.launch-kali');
+        if (denied) return denied;
         // Spawns native Windows Terminal or WSL Kali console directly on Windows desktop
         const psCmd = "if (Get-Command wt.exe -ErrorAction SilentlyContinue) { Start-Process wt.exe -ArgumentList 'wsl.exe -d kali-linux ~' } else { Start-Process cmd.exe -ArgumentList '/c start `\"Kali Linux - Hermes Agent OS`\" wsl.exe -d kali-linux ~' }";
         await launchOnWindows(psCmd);
@@ -164,17 +181,28 @@ export async function POST(req: NextRequest) {
       }
 
       case 'open-explorer': {
-        const targetPath = body.path || 'C:\\Users\\anish\\Hermes-Agent-OS';
-        const psCmd = `Start-Process explorer.exe -ArgumentList '${targetPath}'`;
+        const denied = requireUiPolicy('windows.open-explorer');
+        if (denied) return denied;
+        const requestedPath = typeof body.path === 'string' ? body.path.trim() : '';
+        if (requestedPath.length > 1024 || [...requestedPath].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+          return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+        }
+        const targetPath = requestedPath || '';
+        const psLiteral = targetPath.replace(/'/g, "''");
+        const psCmd = targetPath
+          ? `Start-Process explorer.exe -ArgumentList ([char]34 + '${psLiteral}' + [char]34)`
+          : "Start-Process explorer.exe -ArgumentList ([char]34 + $env:USERPROFILE + [char]34)";
         await launchOnWindows(psCmd);
         return NextResponse.json({
           success: true,
           action,
-          message: `Opened Windows File Explorer at ${targetPath}.`,
+          message: targetPath ? `Opened Windows File Explorer at ${targetPath}.` : 'Opened Windows File Explorer.',
         });
       }
 
       case 'launch-godseye': {
+        const denied = requireUiPolicy('windows.launch-godseye');
+        if (denied) return denied;
         // Launch God's Eye 3D Earth in dedicated app window
         const psCmd = "if (Test-Path 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe') { Start-Process 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe' -ArgumentList '--app=http://localhost:4173 --window-size=1440,900' } else { Start-Process 'http://localhost:4173' }";
         await launchOnWindows(psCmd);
@@ -186,8 +214,10 @@ export async function POST(req: NextRequest) {
       }
 
       case 'launch-studio-app': {
+        const denied = requireUiPolicy('windows.launch-studio-app');
+        if (denied) return denied;
         // Launch independent standalone desktop application (NO web browser)
-        const psCmd = "if (Test-Path 'C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe') { Start-Process 'C:\\Users\\anish\\Hermes-Agent-OS\\Hermes-Agent-OS.exe' -WorkingDirectory 'C:\\Users\\anish\\Hermes-Agent-OS' -WindowStyle Hidden } elseif (Test-Path 'C:\\Users\\anish\\Hermes-Agent-OS\\node_modules\\electron\\dist\\electron.exe') { Start-Process 'C:\\Users\\anish\\Hermes-Agent-OS\\node_modules\\electron\\dist\\electron.exe' -ArgumentList '.' -WorkingDirectory 'C:\\Users\\anish\\Hermes-Agent-OS' -WindowStyle Hidden } else { Start-Process 'http://127.0.0.1:3001' -WindowStyle Hidden }";
+        const psCmd = "$root = Join-Path $env:USERPROFILE 'Hermes-Agent-OS'; $app = Join-Path $root 'Hermes-Agent-OS.exe'; $electron = Join-Path $root 'node_modules\\electron\\dist\\electron.exe'; if (Test-Path $app) { Start-Process $app -WorkingDirectory $root -WindowStyle Hidden } elseif (Test-Path $electron) { Start-Process $electron -ArgumentList '.' -WorkingDirectory $root -WindowStyle Hidden } else { Start-Process 'http://127.0.0.1:3001' -WindowStyle Hidden }";
         await launchOnWindows(psCmd);
         return NextResponse.json({
           success: true,
@@ -197,8 +227,13 @@ export async function POST(req: NextRequest) {
       }
 
       case 'restart-daemons': {
-        const scriptPath = '/home/thecyberexpert/.gemini/antigravity/scratch/studio/scripts/manage-services.sh';
-        await execAsync(`bash ${scriptPath} restart`, { timeout: 25000 });
+        const decision = authorizeAction('windows.restart-daemons', body.confirmation);
+        if (!decision.allowed) {
+          return NextResponse.json({ error: decision.reason, risk: decision.risk, action }, { status: decision.status });
+        }
+        const scriptPath = process.env.HERMES_MANAGE_SCRIPT ||
+          path.join(os.homedir(), '.gemini', 'antigravity', 'scratch', 'studio', 'scripts', 'manage-services.sh');
+        await execFileAsync('bash', [scriptPath, 'restart'], { timeout: 25000, windowsHide: true });
         return NextResponse.json({
           success: true,
           action,
@@ -212,9 +247,9 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
     }
-  } catch (err: any) {
+  } catch {
     return NextResponse.json(
-      { error: err.message || 'Windows bridge operation failed' },
+      { error: 'Windows bridge operation failed' },
       { status: 500 }
     );
   }

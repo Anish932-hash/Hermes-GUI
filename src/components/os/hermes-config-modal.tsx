@@ -166,13 +166,14 @@ export const HermesConfigModal: React.FC<HermesConfigModalProps> = ({
 
   // Save SOUL Personality Prompt
   const handleSaveSoul = async () => {
+    if (!window.confirm('Save the Hermes SOUL.md instructions?\n\nThis changes the system-level instructions Hermes reads. Continue only if you trust the new content.')) return;
     soundFx.playClick(1000);
     setIsSaving(true);
     try {
       const res = await fetch('/api/hermes/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ soulPrompt }),
+        body: JSON.stringify({ soulPrompt, confirmation: 'config.soul-write' }),
       });
 
       if (res.ok) {
@@ -195,13 +196,14 @@ export const HermesConfigModal: React.FC<HermesConfigModalProps> = ({
 
   // Save Raw YAML
   const handleSaveRawYaml = async () => {
+    if (!window.confirm('Apply the complete raw Hermes config.yaml?\n\nThis replaces the active configuration file. A backup will be created, but invalid settings can prevent the runtime from starting.')) return;
     soundFx.playClick(1000);
     setIsSaving(true);
     try {
       const res = await fetch('/api/hermes/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rawYaml }),
+        body: JSON.stringify({ rawYaml, confirmation: 'config.raw-write' }),
       });
 
       if (res.ok) {
@@ -225,13 +227,14 @@ export const HermesConfigModal: React.FC<HermesConfigModalProps> = ({
 
   // Gateway Service Actions
   const handleGatewayAction = async (action: 'restart' | 'stop' | 'start') => {
+    if (action !== 'start' && !window.confirm(`Confirm ${action} Hermes Gateway?\n\n${action === 'restart' ? 'Active sessions may be interrupted while the gateway restarts.' : 'Active sessions may be interrupted and the gateway will stop.'}`)) return;
     soundFx.playClick(900);
     setIsSaving(true);
     try {
       const res = await fetch('/api/hermes/gateway', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...(action !== 'start' ? { confirmation: `gateway.${action}` } : {}) }),
       });
       const data = await res.json();
       if (res.ok) {

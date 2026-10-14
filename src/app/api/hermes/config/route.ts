@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { HERMES_HOME, execAsync } from '@/lib/hermes';
+import { HERMES_HOME } from '@/lib/hermes';
+import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
+import { validateStructuredConfigUpdates } from '@/lib/hermes-config-policy';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
   try {
     const configPath = path.join(HERMES_HOME, 'config.yaml');
     const soulPath = path.join(HERMES_HOME, 'SOUL.md');
@@ -124,27 +131,92 @@ export async function GET() {
         { id: 'auto', label: 'Auto-Detect from Credentials', keyConfigured: true },
       ],
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'The requested Hermes operation failed' }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
+
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    if (typeof body.rawYaml === 'string' && body.rawYaml.length > 256 * 1024) {
+      return NextResponse.json({ error: 'Raw configuration exceeds the 256 KB limit' }, { status: 413 });
+    }
+    if (typeof body.soulPrompt === 'string' && body.soulPrompt.length > 64 * 1024) {
+      return NextResponse.json({ error: 'SOUL prompt exceeds the 64 KB limit' }, { status: 413 });
+    }
+    const validScalar = (value: unknown, max: number) => typeof value === 'string' && value.length > 0 && value.length <= max && ![...value].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127);
+    if (body.model !== undefined && !validScalar(body.model, 160)) {
+      return NextResponse.json({ error: 'Invalid model identifier' }, { status: 400 });
+    }
+    if (body.provider !== undefined && (!validScalar(body.provider, 64) || !/^[a-zA-Z0-9._-]+$/.test(body.provider))) {
+      return NextResponse.json({ error: 'Invalid provider identifier' }, { status: 400 });
+    }
+    if (body.reasoning !== undefined && !['on', 'off', 'auto'].includes(body.reasoning)) {
+      return NextResponse.json({ error: 'Reasoning must be on, off, or auto' }, { status: 400 });
+    }
+    if (body.streaming !== undefined && typeof body.streaming !== 'boolean') {
+      return NextResponse.json({ error: 'streaming must be a boolean' }, { status: 400 });
+    }
+    if (body.temperature !== undefined && (typeof body.temperature !== 'number' || !Number.isFinite(body.temperature) || body.temperature < 0 || body.temperature > 2)) {
+      return NextResponse.json({ error: 'Temperature must be between 0 and 2' }, { status: 400 });
+    }
+    if (body.maxTokens !== undefined && (!Number.isInteger(body.maxTokens) || body.maxTokens < 1 || body.maxTokens > 200000)) {
+      return NextResponse.json({ error: 'maxTokens must be an integer from 1 to 200000' }, { status: 400 });
+    }
+    if (body.maxSessions !== undefined && (!Number.isInteger(body.maxSessions) || body.maxSessions < 1 || body.maxSessions > 100)) {
+      return NextResponse.json({ error: 'maxSessions must be an integer from 1 to 100' }, { status: 400 });
+    }
+    if (body.rawYaml !== undefined && typeof body.rawYaml !== 'string') {
+      return NextResponse.json({ error: 'rawYaml must be a string' }, { status: 400 });
+    }
+    if (body.soulPrompt !== undefined && typeof body.soulPrompt !== 'string') {
+      return NextResponse.json({ error: 'soulPrompt must be a string' }, { status: 400 });
+    }
+    if (typeof body.rawYaml === 'string' && typeof body.soulPrompt === 'string') {
+      return NextResponse.json({ error: 'Submit rawYaml or soulPrompt in a separate request' }, { status: 400 });
+    }
+    const hasRawWrite = typeof body.rawYaml === 'string';
+    const hasSoulWrite = typeof body.soulPrompt === 'string';
+    const structuredKeys = ['model', 'provider', 'temperature', 'maxTokens', 'streaming', 'reasoning', 'maxSessions'];
+    const hasStructuredUpdate = structuredKeys.some((key) => Object.prototype.hasOwnProperty.call(body, key));
+    if (!hasRawWrite && !hasSoulWrite && !hasStructuredUpdate) {
+      return NextResponse.json({ error: 'No supported configuration fields were provided' }, { status: 400 });
+    }
+    if (hasRawWrite || hasSoulWrite) {
+      const action = typeof body.rawYaml === 'string' ? 'config.raw-write' : 'config.soul-write';
+      const decision = authorizeAction(action, body.confirmation);
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.reason, risk: decision.risk, action }, { status: decision.status });
+      }
+    }
     const configPath = path.join(HERMES_HOME, 'config.yaml');
     const soulPath = path.join(HERMES_HOME, 'SOUL.md');
+    const hadExistingConfig = fs.existsSync(configPath);
+
+    if (!hasRawWrite && !hasSoulWrite && !fs.existsSync(configPath)) {
+      return NextResponse.json({ error: 'Hermes config.yaml was not found; no settings were changed' }, { status: 404 });
+    }
 
     // 1. Direct raw YAML update
     if (typeof body.rawYaml === 'string') {
-      if (fs.existsSync(configPath)) {
+      if (hadExistingConfig) {
         // Backup previous config
         fs.copyFileSync(configPath, `${configPath}.bak`);
       }
       fs.writeFileSync(configPath, body.rawYaml, 'utf8');
       return NextResponse.json({
         success: true,
-        message: 'Successfully saved raw config.yaml (backup created)',
+        message: hadExistingConfig
+          ? 'Successfully saved raw config.yaml and created a backup.'
+          : 'Successfully created raw config.yaml.',
       });
     }
 
@@ -161,15 +233,21 @@ export async function POST(req: NextRequest) {
     if (fs.existsSync(configPath)) {
       let content = fs.readFileSync(configPath, 'utf8');
 
+      // Fail before writing if a requested setting cannot be applied.
+      const configUpdateError = validateStructuredConfigUpdates(content, body);
+      if (configUpdateError) {
+        return NextResponse.json({ error: configUpdateError }, { status: 400 });
+      }
+
       if (body.model) {
         if (/default:\s*['"]?[^'"\n#]+['"]?/.test(content)) {
-          content = content.replace(/default:\s*['"]?[^'"\n#]+['"]?/, `default: '${body.model}'`);
+          content = content.replace(/default:\s*['"]?[^'"\n#]+['"]?/, () => `default: '${body.model.replace(/'/g, "''")}'`);
         }
       }
 
       if (body.provider) {
         if (/provider:\s*['"]?[^'"\n#]+['"]?/.test(content)) {
-          content = content.replace(/provider:\s*['"]?[^'"\n#]+['"]?/, `provider: '${body.provider}'`);
+          content = content.replace(/provider:\s*['"]?[^'"\n#]+['"]?/, () => `provider: '${body.provider.replace(/'/g, "''")}'`);
         }
       }
 
@@ -196,7 +274,7 @@ export async function POST(req: NextRequest) {
 
       if (body.reasoning) {
         if (/reasoning:\s*['"]?[^'"\n#]+['"]?/.test(content)) {
-          content = content.replace(/reasoning:\s*['"]?[^'"\n#]+['"]?/, `reasoning: '${body.reasoning}'`);
+          content = content.replace(/reasoning:\s*['"]?[^'"\n#]+['"]?/, () => `reasoning: '${body.reasoning}'`);
         }
       }
 
@@ -218,9 +296,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Hermes configurations saved and applied to ~/.hermes/config.yaml',
-      updated: body,
+      updated: {
+        model: body.model,
+        provider: body.provider,
+        temperature: body.temperature,
+        maxTokens: body.maxTokens,
+        streaming: body.streaming,
+        reasoning: body.reasoning,
+        maxSessions: body.maxSessions,
+        soulPromptUpdated: typeof body.soulPrompt === 'string',
+      },
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'The requested Hermes operation failed' }, { status: 500 });
   }
 }

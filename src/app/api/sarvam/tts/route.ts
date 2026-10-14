@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { isLocalRequest } from '@/lib/local-request';
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const body = await req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
     const {
       text,
       speaker: requestedSpeaker,
@@ -14,6 +22,22 @@ export async function POST(req: NextRequest) {
       model = 'bulbul:v3',
       apiKey: clientApiKey,
     } = body;
+
+    if (typeof languageCode !== 'string' || languageCode.length > 32 || [...languageCode].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+      return NextResponse.json({ error: 'Invalid language code' }, { status: 400 });
+    }
+    if (typeof pace !== 'number' || !Number.isFinite(pace) || pace < 0.5 || pace > 2) {
+      return NextResponse.json({ error: 'Pace must be a finite number between 0.5 and 2' }, { status: 400 });
+    }
+    if (typeof pitch !== 'number' || !Number.isFinite(pitch) || pitch < -20 || pitch > 20) {
+      return NextResponse.json({ error: 'Pitch must be a finite number between -20 and 20' }, { status: 400 });
+    }
+    if (requestedSpeaker !== undefined && (typeof requestedSpeaker !== 'string' || requestedSpeaker.length > 64 || [...requestedSpeaker].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
+      return NextResponse.json({ error: 'Invalid speaker identifier' }, { status: 400 });
+    }
+    if (clientApiKey != null && (typeof clientApiKey !== 'string' || clientApiKey.length > 512 || [...clientApiKey].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
+      return NextResponse.json({ error: 'Invalid API key field' }, { status: 400 });
+    }
 
     if (!['bulbul:v2', 'bulbul:v3', 'bulbul:v4-flash'].includes(model)) {
       return NextResponse.json({ error: 'Unsupported Sarvam TTS model' }, { status: 400 });
@@ -78,10 +102,10 @@ export async function POST(req: NextRequest) {
     });
 
     if (!sarvamRes.ok) {
-      const errText = await sarvamRes.text();
+      await sarvamRes.text(); // Consume the body without exposing provider details to the client.
       return NextResponse.json(
         {
-          error: `Sarvam TTS API Error (${sarvamRes.status}): ${errText}`,
+          error: 'Sarvam TTS provider request failed',
           statusCode: sarvamRes.status,
         },
         { status: sarvamRes.status }
@@ -101,10 +125,9 @@ export async function POST(req: NextRequest) {
       model: model,
       speaker: speaker || null,
     });
-  } catch (error: any) {
-    console.error('Sarvam TTS error:', error);
+  } catch {
     return NextResponse.json(
-      { error: error.message || 'Internal error in Sarvam TTS route' },
+      { error: 'Speech synthesis failed' },
       { status: 500 }
     );
   }

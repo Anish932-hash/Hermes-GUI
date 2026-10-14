@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
-import { spawn, exec } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import fs from 'fs';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
+
+const execFileAsync = promisify(execFile);
+
 export const dynamic = 'force-dynamic';
 
 const PULSE_SERVER = '/mnt/wslg/PulseServer';
@@ -172,11 +176,14 @@ function samplePulseAudio(timeoutMs = 90): Promise<WslAudioSample> {
   });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const sample = await samplePulseAudio(90);
     return NextResponse.json(sample);
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
       {
         active: false,
@@ -185,7 +192,7 @@ export async function GET() {
         fft: Array(28).fill(0),
         server: PULSE_SERVER,
         isAvailable: fs.existsSync(PULSE_SERVER),
-        error: error.message,
+        error: 'Audio diagnostics failed',
       },
       { status: 500 }
     );
@@ -193,39 +200,109 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
-    const body = await req.json().catch(() => ({}));
-    const action = body.action || 'test_tone';
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    if (body.action !== undefined && typeof body.action !== 'string') {
+      return NextResponse.json({ error: 'action must be a string' }, { status: 400 });
+    }
+    const action = body.action === undefined ? 'test_tone' : body.action;
 
     if (action === 'test_tone') {
-      const freq = body.frequency || 660;
-      const duration = body.duration || 0.4;
+      const decision = authorizeAction('audio.test-tone');
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
+      }
+      const freq = body.frequency === undefined ? 660 : body.frequency;
+      const duration = body.duration === undefined ? 0.4 : body.duration;
 
-      // Trigger a harmless test chirp inside WSL PulseAudio
-      exec(`sox -n -t pulseaudio default synth ${duration} sine ${freq} vol 0.35 2>/dev/null &`);
+      if (
+        typeof freq !== 'number' || !Number.isFinite(freq) || freq < 40 || freq > 20000 ||
+        typeof duration !== 'number' || !Number.isFinite(duration) || duration < 0.1 || duration > 2
+      ) {
+        return NextResponse.json(
+          { error: 'Test tone frequency must be 40–20000 Hz and duration must be 0.1–2 seconds.' },
+          { status: 400 },
+        );
+      }
+
+      // Spawn the binary with an argument array; never interpolate request data into a shell command.
+      const tone = spawn('sox', [
+        '-n', '-t', 'pulseaudio', 'default', 'synth',
+        String(duration), 'sine', String(freq), 'vol', '0.35',
+      ], { stdio: 'ignore', detached: true });
+
+      // A ChildProcess object is not proof that the executable actually spawned.
+      // Wait for the spawn event and return a bounded, sanitized failure otherwise.
+      const spawnOutcome = await new Promise<'spawned' | 'failed' | 'timeout'>((resolve) => {
+        let settled = false;
+        const finish = (outcome: 'spawned' | 'failed' | 'timeout') => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(outcome);
+        };
+        const timer = setTimeout(() => {
+          try { tone.kill(); } catch {}
+          finish('timeout');
+        }, 2000);
+        tone.once('spawn', () => finish('spawned'));
+        tone.once('error', () => finish('failed'));
+      });
+
+      if (spawnOutcome !== 'spawned') {
+        return NextResponse.json(
+          { error: spawnOutcome === 'timeout' ? 'Audio process startup timed out' : 'Audio test tone could not be started' },
+          { status: 502 },
+        );
+      }
+      tone.unref();
 
       return NextResponse.json({
         success: true,
-        message: `Dispatched ${duration}s test tone (${freq}Hz) to WSL PulseAudio default sink`,
+        message: `Started ${duration}s test tone (${freq}Hz) on the WSL PulseAudio default sink; playback completion is not verified.`,
       });
     }
 
     if (action === 'diagnostics') {
-      const { stdout: sinks } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sinks 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
-      const { stdout: sources } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sources 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
-      const { stdout: clients } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sink-inputs 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
+      const decision = authorizeAction('audio.diagnostics');
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
+      }
+      const runPactl = async (kind: 'sinks' | 'sources' | 'sink-inputs') => {
+        try {
+          const { stdout } = await execFileAsync('pactl', ['list', 'short', kind], {
+            env: { ...process.env, PULSE_SERVER },
+            timeout: 2500,
+            maxBuffer: 64 * 1024,
+          });
+          return stdout.trim().split('\n').filter(Boolean);
+        } catch {
+          return ['Unavailable'];
+        }
+      };
+      const [sinks, sources, clients] = await Promise.all([
+        runPactl('sinks'),
+        runPactl('sources'),
+        runPactl('sink-inputs'),
+      ]);
 
       return NextResponse.json({
         pulseServer: PULSE_SERVER,
         exists: fs.existsSync(PULSE_SERVER),
-        sinks: sinks.trim().split('\n').filter(Boolean),
-        sources: sources.trim().split('\n').filter(Boolean),
-        activeAudioClients: clients.trim().split('\n').filter(Boolean),
+        sinks,
+        sources,
+        activeAudioClients: clients,
       });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Audio request failed' }, { status: 500 });
   }
 }

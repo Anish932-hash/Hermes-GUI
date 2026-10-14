@@ -11,17 +11,21 @@ let wslKeepAliveChild = null;
 let studioBridge = null;
 let godseyeBridge = null;
 
-const DISTRO = 'kali-linux';
+const DISTRO = process.env.HERMES_WSL_DISTRO || 'kali-linux';
+// Preserve the existing WSL account by default; override for another distro/user.
+const WSL_USER = process.env.HERMES_WSL_USER || 'thecyberexpert';
+const WSL_HOME = process.env.HERMES_WSL_HOME || `/home/${WSL_USER}`;
 const STUDIO_PORT = 3001;
 const STUDIO_URL = 'http://127.0.0.1:3001';
-const MANAGE_SCRIPT = '/home/thecyberexpert/.gemini/antigravity/scratch/studio/scripts/manage-services.sh';
+const MANAGE_SCRIPT = process.env.HERMES_MANAGE_SCRIPT ||
+  `${WSL_HOME}/.gemini/antigravity/scratch/studio/scripts/manage-services.sh`;
 
 // Query WSL eth0 IP early to register origin as secure in Chromium
 let wslIpCached = null;
 try {
   const ipOut = execFileSync(
     'wsl.exe',
-    ['-d', DISTRO, '-u', 'thecyberexpert', 'bash', '-c', "ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' | head -n 1"],
+    ['-d', DISTRO, '-u', WSL_USER, 'bash', '-c', "ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' | head -n 1"],
     { timeout: 3500, windowsHide: true }
   );
   const ip = ipOut.toString().trim();
@@ -110,7 +114,7 @@ function executeWslCommand(cmd) {
   return new Promise((resolve) => {
     execFile(
       'wsl.exe',
-      ['-d', DISTRO, '-u', 'thecyberexpert', 'bash', '-c', cmd],
+      ['-d', DISTRO, '-u', WSL_USER, 'bash', '-c', cmd],
       {
         timeout: 40000,
         windowsHide: true,
@@ -121,7 +125,7 @@ function executeWslCommand(cmd) {
           // Fallback: try default WSL without -d if DISTRO name differed
           execFile(
             'wsl.exe',
-            ['-u', 'thecyberexpert', 'bash', '-c', cmd],
+            ['-u', WSL_USER, 'bash', '-c', cmd],
             { timeout: 35000, windowsHide: true },
             (err2, stdout2, stderr2) => {
               resolve({ success: !err2, stdout: stdout2 || stdout, stderr: stderr2 || stderr });
@@ -141,7 +145,7 @@ function startWslKeepAlive() {
   try {
     wslKeepAliveChild = spawn(
       'wsl.exe',
-      ['-d', DISTRO, '-u', 'thecyberexpert', 'bash', '-c', 'while true; do sleep 3600; done'],
+      ['-d', DISTRO, '-u', WSL_USER, 'bash', '-c', 'while true; do sleep 3600; done'],
       {
         detached: true,
         stdio: 'ignore',
@@ -156,18 +160,18 @@ function startWslKeepAlive() {
 
 // Launch Kali interactive terminal (on user demand only: Ctrl+K, tray menu, or UI button)
 function launchKaliTerminal() {
-  const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || 'C:\\Users\\anish', 'AppData', 'Local');
+  const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || process.cwd(), 'AppData', 'Local');
   const wtPath = path.join(localAppData, 'Microsoft', 'WindowsApps', 'wt.exe');
 
   try {
     if (fs.existsSync(wtPath)) {
-      const child = spawn(wtPath, ['wsl.exe', '-d', DISTRO, '-u', 'thecyberexpert', '~'], {
+      const child = spawn(wtPath, ['wsl.exe', '-d', DISTRO, '-u', WSL_USER, '~'], {
         detached: true,
         stdio: 'ignore',
       });
       child.unref();
     } else {
-      const child = spawn('cmd.exe', ['/c', 'start', 'Kali Linux - Hermes Agent OS', 'wsl.exe', '-d', DISTRO, '-u', 'thecyberexpert', '~'], {
+      const child = spawn('cmd.exe', ['/c', 'start', 'Kali Linux - Hermes Agent OS', 'wsl.exe', '-d', DISTRO, '-u', WSL_USER, '~'], {
         detached: true,
         stdio: 'ignore',
       });

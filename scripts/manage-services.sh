@@ -2,41 +2,53 @@
 # ==============================================================================
 # HERMES AGENT OS — SERVICES CONTROLLER & DAEMON MANAGER (PERSISTENT & RESILIENT)
 # Autonomous manager for Next.js Studio (3001), God's Eye Cesium (4173),
-# and Hermes Gateway Daemon in WSL2 Kali Linux with 0.0.0.0 host binding.
+# and Hermes Gateway Daemon in WSL2 Kali Linux, bound to its private eth0 address.
 # ==============================================================================
 
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:$PATH"
 
-STUDIO_DIR="/home/thecyberexpert/.gemini/antigravity/scratch/studio"
-GODSEYE_DIR="/home/thecyberexpert/gods-eye-view"
-HERMES_DIR="/home/thecyberexpert/.hermes"
+# Bind only to the WSL2 eth0 address instead of every interface. The Windows
+# Electron bridge connects to this address; loopback-only binding would break it.
+BIND_HOST="${HERMES_BIND_HOST:-$(ip -4 addr show eth0 2>/dev/null | awk '/inet / { print $2; exit }' | cut -d/ -f1)}"
+if [[ ! "${BIND_HOST}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  echo "[-] Could not determine WSL2 eth0 IPv4 address; refusing to bind services to all interfaces."
+  exit 1
+fi
+export HERMES_BIND_HOST="${BIND_HOST}"
+
+STUDIO_DIR="${HERMES_STUDIO_DIR:-${HOME}/.gemini/antigravity/scratch/studio}"
+GODSEYE_DIR="${HERMES_GODSEYE_DIR:-${HOME}/gods-eye-view}"
+HERMES_DIR="${HERMES_HOME:-${HOME}/.hermes}"
 RUN_DIR="${HERMES_DIR}/run"
 mkdir -p "${RUN_DIR}"
 
 is_port_listening() {
   local port="$1"
-  curl -s --max-time 1.5 -o /dev/null "http://127.0.0.1:${port}/" 2>/dev/null
+  curl -s --max-time 1.5 -o /dev/null "http://${BIND_HOST}:${port}/" 2>/dev/null
 }
 
 start_studio() {
   if is_port_listening 3001; then
-    echo "[ONLINE] Next.js Studio is already running on http://127.0.0.1:3001"
+    echo "[ONLINE] Next.js Studio is already running on http://${BIND_HOST}:3001"
   else
-    echo "[*] Starting Next.js Studio on port 3001 (-H 0.0.0.0)..."
+    echo "[*] Starting Next.js Studio on ${BIND_HOST}:3001 (WSL interface only)..."
     tmux kill-session -t hermes-studio 2>/dev/null || true
-    fuser -k 3001/tcp 2>/dev/null || true
     cd "${STUDIO_DIR}"
     if [ -d ".next" ]; then
-      tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && PORT=3001 npx next start -H 0.0.0.0 -p 3001 > '${RUN_DIR}/studio.log' 2>&1"
+      tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 npx next start -H '${BIND_HOST}' -p 3001 > '${RUN_DIR}/studio.log' 2>&1"
     else
-      tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && PORT=3001 npm run dev > '${RUN_DIR}/studio.log' 2>&1"
+      tmux new-session -d -s hermes-studio "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 npx next dev -H '${BIND_HOST}' -p 3001 --turbopack > '${RUN_DIR}/studio.log' 2>&1"
     fi
 
     # Fallback to direct nohup daemon if tmux is unavailable
     sleep 1
     if ! tmux has-session -t hermes-studio 2>/dev/null && ! is_port_listening 3001; then
       echo "[*] Tmux session absent; launching Next.js Studio via persistent nohup daemon..."
-      nohup bash -c "cd '${STUDIO_DIR}' && PORT=3001 npx next start -H 0.0.0.0 -p 3001" > "${RUN_DIR}/studio.log" 2>&1 &
+      if [ -d ".next" ]; then
+        nohup bash -c "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 exec npx next start -H '${BIND_HOST}' -p 3001" > "${RUN_DIR}/studio.log" 2>&1 &
+      else
+        nohup bash -c "cd '${STUDIO_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' PORT=3001 exec npx next dev -H '${BIND_HOST}' -p 3001 --turbopack" > "${RUN_DIR}/studio.log" 2>&1 &
+      fi
       echo $! > "${RUN_DIR}/studio.pid"
     fi
     echo "[+] Next.js Studio initiated in persistent session."
@@ -45,18 +57,17 @@ start_studio() {
 
 start_godseye() {
   if is_port_listening 4173; then
-    echo "[ONLINE] God's Eye Cesium Viewer is already running on http://127.0.0.1:4173"
+    echo "[ONLINE] God's Eye Cesium Viewer is already running on http://${BIND_HOST}:4173"
   else
-    echo "[*] Starting God's Eye Cesium Viewer on port 4173 (--host 0.0.0.0)..."
+    echo "[*] Starting God's Eye Cesium Viewer on ${BIND_HOST}:4173 (WSL interface only)..."
     if [ -d "${GODSEYE_DIR}" ]; then
       tmux kill-session -t hermes-godseye 2>/dev/null || true
-      fuser -k 4173/tcp 2>/dev/null || true
-      tmux new-session -d -s hermes-godseye "cd '${GODSEYE_DIR}' && npm run dev -- --host 0.0.0.0 --port 4173 > '${RUN_DIR}/godseye.log' 2>&1"
+      tmux new-session -d -s hermes-godseye "cd '${GODSEYE_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' npm run dev -- --host '${BIND_HOST}' --port 4173 > '${RUN_DIR}/godseye.log' 2>&1"
 
       sleep 1
       if ! tmux has-session -t hermes-godseye 2>/dev/null && ! is_port_listening 4173; then
         echo "[*] Tmux session absent; launching God's Eye Viewer via persistent nohup daemon..."
-        nohup bash -c "cd '${GODSEYE_DIR}' && npm run dev -- --host 0.0.0.0 --port 4173" > "${RUN_DIR}/godseye.log" 2>&1 &
+        nohup bash -c "cd '${GODSEYE_DIR}' && HERMES_BIND_HOST='${BIND_HOST}' exec npm run dev -- --host '${BIND_HOST}' --port 4173" > "${RUN_DIR}/godseye.log" 2>&1 &
         echo $! > "${RUN_DIR}/godseye.pid"
       fi
       echo "[+] God's Eye Cesium initiated in persistent session."
@@ -102,11 +113,10 @@ start_gateway() {
 wait_ready() {
   local timeout=${1:-30}
   local elapsed=0
-  echo "[*] Waiting for services to become responsive on 0.0.0.0 (timeout: ${timeout}s)..."
+  echo "[*] Waiting for services on ${BIND_HOST} (timeout: ${timeout}s)..."
   while [ ${elapsed} -lt ${timeout} ]; do
     if is_port_listening 3001 && is_port_listening 4173; then
       echo "[+] All services are ready! Studio: http://localhost:3001 | God's Eye: http://localhost:4173"
-      curl -s -X POST http://127.0.0.1:3001/api/system/auto-setup >/dev/null 2>&1 || true
       return 0
     fi
     sleep 1
@@ -119,9 +129,21 @@ stop_all() {
   echo "[*] Stopping Hermes Agent OS services..."
   tmux kill-session -t hermes-studio 2>/dev/null || true
   tmux kill-session -t hermes-godseye 2>/dev/null || true
-  fuser -k 3001/tcp 2>/dev/null || true
-  fuser -k 4173/tcp 2>/dev/null || true
-  echo "[+] Services stopped successfully."
+  # Only stop fallback daemons whose recorded PID still identifies our service.
+  local pidfile pid command
+  for pidfile in "${RUN_DIR}/studio.pid" "${RUN_DIR}/godseye.pid"; do
+    if [ -f "${pidfile}" ]; then
+      pid=$(cat "${pidfile}" 2>/dev/null || true)
+      if [[ "${pid}" =~ ^[0-9]+$ ]] && kill -0 "${pid}" 2>/dev/null; then
+        command=$(ps -p "${pid}" -o args= 2>/dev/null || true)
+        if [[ "${command}" == *"next start"* || "${command}" == *"next dev"* || "${command}" == *"npm run dev"* ]]; then
+          kill "${pid}" 2>/dev/null || true
+        fi
+      fi
+      rm -f "${pidfile}"
+    fi
+  done
+  echo "[+] Managed services stopped; unrelated processes on these ports were left untouched."
 }
 
 status_all() {

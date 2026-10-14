@@ -177,13 +177,20 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ onOpen
   };
 
   const handleGatewayAction = async (action: 'restart' | 'stop' | 'start') => {
+    if (action !== 'start') {
+      const target = `Hermes Gateway (${action})`;
+      const detail = action === 'restart'
+        ? 'This interrupts active Hermes sessions while the gateway restarts.'
+        : 'This stops the gateway and may interrupt active Hermes sessions.';
+      if (!window.confirm(`Confirm ${target}?\n\n${detail}\n\nChoose Cancel to leave the service unchanged.`)) return;
+    }
     soundFx.playClick(900);
     setIsProcessing(true);
     try {
       const res = await fetch('/api/hermes/gateway', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...(action !== 'start' ? { confirmation: `gateway.${action}` } : {}) }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -205,15 +212,20 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ onOpen
   };
 
   const handleRunSystemOptimization = async () => {
+    if (!window.confirm('Confirm system optimization?\n\nThis runs local maintenance that may alter runtime caches/process state. It is not a guaranteed performance improvement.\n\nChoose Cancel to make no changes.')) return;
     soundFx.playBoost();
     setIsProcessing(true);
     try {
-      const res = await fetch('/api/system/boost', { method: 'POST' });
+      const res = await fetch('/api/system/boost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: 'system.boost' }),
+      });
       const data = await res.json();
       if (res.ok) {
         toast({
           title: "Hyper-Optimization Complete",
-          description: `Observed ${data.freedMB ?? 0} MB RAM decrease. ${data.details?.join('; ') || 'System maintenance completed.'}`,
+          description: `${data.freedMB == null ? 'RAM change could not be measured. ' : `Observed ${data.freedMB} MB RAM decrease. `}${data.details?.join('; ') || 'System maintenance completed.'}`,
         });
       }
     } catch {

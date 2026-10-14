@@ -1,15 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { isLocalRequest } from '@/lib/local-request';
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  if (!isLocalRequest(req)) {
+    return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
+  }
   try {
     const formData = await req.formData();
     const file = formData.get('file');
-    const model = (formData.get('model') as string) || 'saaras:v3';
+    const rawModel = formData.get('model');
+    const model = typeof rawModel === 'string' && rawModel.trim() ? rawModel.trim() : 'saaras:v3';
+    if (!/^[a-zA-Z0-9:_-]{1,64}$/.test(model)) {
+      return NextResponse.json({ error: 'Invalid STT model identifier' }, { status: 400 });
+    }
     const rawLang = formData.get('language_code');
     const languageCode = typeof rawLang === 'string' && rawLang.trim() ? rawLang.trim() : 'unknown';
-    const clientApiKey = formData.get('apiKey') as string | null;
+    if (languageCode.length > 32 || [...languageCode].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
+      return NextResponse.json({ error: 'Invalid language code' }, { status: 400 });
+    }
+    const rawApiKey = formData.get('apiKey');
+    if (rawApiKey !== null && (typeof rawApiKey !== 'string' || rawApiKey.length > 512 || [...rawApiKey].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
+      return NextResponse.json({ error: 'Invalid API key field' }, { status: 400 });
+    }
+    const clientApiKey = typeof rawApiKey === 'string' ? rawApiKey : null;
 
     const apiKey = clientApiKey || process.env.SARVAM_API_KEY;
 
@@ -96,10 +112,10 @@ export async function POST(req: NextRequest) {
     });
 
     if (!sarvamRes.ok) {
-      const errText = await sarvamRes.text();
+      await sarvamRes.text(); // Consume the body without exposing provider details to the client.
       return NextResponse.json(
         {
-          error: `Sarvam STT API Error (${sarvamRes.status}): ${errText}`,
+          error: 'Sarvam STT provider request failed',
           statusCode: sarvamRes.status,
         },
         { status: sarvamRes.status }
@@ -112,10 +128,9 @@ export async function POST(req: NextRequest) {
       languageCode: data.language_code || languageCode,
       model: model,
     });
-  } catch (error: any) {
-    console.error('Sarvam STT error:', error);
+  } catch {
     return NextResponse.json(
-      { error: error.message || 'Internal error in Sarvam STT route' },
+      { error: 'Speech transcription failed' },
       { status: 500 }
     );
   }
