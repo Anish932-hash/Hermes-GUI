@@ -18,8 +18,8 @@ export async function GET(req: Request) {
       output: status.output,
       logs,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'The requested Hermes operation failed' }, { status: 500 });
   }
 }
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(execution.result);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'The requested Hermes operation failed' }, { status: 500 });
   }
 }
