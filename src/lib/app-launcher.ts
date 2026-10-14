@@ -154,8 +154,14 @@ async function performAppLaunch(intent: AppLaunchIntent): Promise<AppLaunchResul
   try {
     if (app.target === 'windows') await launchWindows(app); else await launchKali(app);
     return { handled: true, success: true, app, message: 'Launch request sent to ' + app.name + ' on ' + (app.target === 'windows' ? 'Windows' : 'Kali Linux') + '.' };
-  } catch (error) {
-    return { handled: true, success: false, app, message: 'Found ' + app.name + ' on ' + app.target + ', but launch failed: ' + (error instanceof Error ? error.message : 'unknown error') };
+  } catch {
+    // Process errors can contain host paths, command output, or environment details.
+    return {
+      handled: true,
+      success: false,
+      app,
+      message: 'Found ' + app.name + ' on ' + app.target + ', but the launch request failed. Check local diagnostics for details.',
+    };
   }
 }
 
