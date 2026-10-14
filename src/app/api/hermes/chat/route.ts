@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
           app: appLaunch.app,
           candidates: appLaunch.candidates,
         },
-      }, { status: appLaunch.success ? 200 : 404 });
+      }, { status: 200 });
     }
 
     const result = await executeHermesChat(message, {
