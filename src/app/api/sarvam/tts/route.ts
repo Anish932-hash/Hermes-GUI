@@ -125,10 +125,9 @@ export async function POST(req: NextRequest) {
       model: model,
       speaker: speaker || null,
     });
-  } catch (error: any) {
-    console.error('Sarvam TTS error:', error);
+  } catch {
     return NextResponse.json(
-      { error: error.message || 'Internal error in Sarvam TTS route' },
+      { error: 'Speech synthesis failed' },
       { status: 500 }
     );
   }
