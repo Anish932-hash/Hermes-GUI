@@ -411,13 +411,16 @@ export async function performSystemBoost(): Promise<{
   try {
     const audioCacheDir = path.join(HERMES_HOME, 'audio_cache');
     if (fs.existsSync(audioCacheDir)) {
-      const files = fs.readdirSync(audioCacheDir);
-      for (const file of files) {
+      const entries = fs.readdirSync(audioCacheDir, { withFileTypes: true });
+      let removedFiles = 0;
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
         try {
-          fs.unlinkSync(path.join(audioCacheDir, file));
+          fs.unlinkSync(path.join(audioCacheDir, entry.name));
+          removedFiles += 1;
         } catch {}
       }
-      if (files.length > 0) details.push(`Removed ${files.length} audio synthesis cache files`);
+      if (removedFiles > 0) details.push(`Removed ${removedFiles} audio synthesis cache files`);
     }
   } catch {}
 
