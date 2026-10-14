@@ -57,7 +57,7 @@ async function probeHttp(url: string, timeoutMs = 1500): Promise<boolean> {
  */
 async function detectAllSubsystems(): Promise<{
   subsystems: DiagnosticSubsystem[];
-  overallHealth: number;
+  overallHealth: number | null;
   timestamp: string;
   systemSpecs: Record<string, any>;
 }> {
