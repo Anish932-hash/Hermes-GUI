@@ -665,13 +665,10 @@ ${lines.join('\n') || 'No listening sockets were reported by ss/netstat.'}
     lower.includes('purge memory') ||
     lower.includes('purge dirty memory')
   ) {
-    const optimization = await performSystemBoost();
+    // Do not let natural-language shortcuts bypass the server-side confirmation
+    // required by POST /api/system/boost. This handler has no confirmation token.
     return {
-      text: `### ⚡ SYSTEM MAINTENANCE COMPLETE
-
-- **Observed memory decrease:** ${optimization.freedMB} MB
-- **RAM before / after:** ${optimization.beforeRamMB} MB / ${optimization.afterRamMB} MB
-- **Maintenance actions:** ${optimization.details.length ? optimization.details.join('; ') : 'No maintenance actions completed.'}`,
+      text: 'System maintenance was not started. It can remove local audio-cache files and perform database/filesystem maintenance, so it must be launched through the System Command Center with its explicit confirmation step. This chat request made no system changes.',
       sessionId: options.sessionId,
     };
   }
