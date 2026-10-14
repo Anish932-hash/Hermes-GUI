@@ -39,6 +39,8 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Validate structured Hermes config inputs and cap raw YAML/SOUL payload sizes before writing files.
 - [x] Validate Hermes chat payload types/lengths and reject malformed gateway/auto-setup request bodies.
 - [x] Register Windows bridge settings, launcher, and Explorer actions in the central policy and enforce policy checks in each handler.
+- [x] Register Wispr Flow status, launch, push-to-talk, trigger, and sync operations in the central policy.
+- [x] Extract Wispr dictation-limit parsing into a tested helper and correct numeric-only validation.
 - [x] Reject malformed loopback Host authorities and add regression tests for path, query, and user-info forms.
 - [x] Restrict the diagnostic command endpoint to exact read-only command/argument combinations; remove general file-content and Hermes command access.
 - [x] Add unit tests for approved diagnostic command shapes and rejection of arbitrary paths, flags, and commands.
