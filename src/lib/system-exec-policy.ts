@@ -16,7 +16,7 @@ export function isAllowedDiagnosticCommand(args: string[]): boolean {
     case 'free': return noArgs() || exact(['-h']) || exact(['-m']);
     case 'df': return exact(['-h']);
     case 'top': return exact(['-b', '-n', '1']);
-    case 'ps': return exact(['aux']) || exact(['-ef']);
+    case 'ps': return exact(['-eo', 'pid,%cpu,%mem,comm']);
     case 'ls': return noArgs() || exact(['-la']);
     case 'netstat': return exact(['-an']);
     case 'ss': return exact(['-tuln']);
