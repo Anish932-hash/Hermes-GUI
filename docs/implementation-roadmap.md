@@ -47,6 +47,8 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Add unit tests for approved diagnostic command shapes and rejection of arbitrary paths, flags, and commands.
 - [x] Bound geocoding query length and reject out-of-range coordinates from external geocoders.
 - [x] Validate Sarvam STT/TTS request fields and avoid returning raw provider error bodies to the client.
+- [x] Sanitize internal exception details from Hermes, audio, telemetry, and voice API error responses.
+- [x] Reject malformed audio JSON rather than silently falling back to the default test-tone action.
 - [x] Keep the God's Eye status GET endpoint read-only; status polling no longer starts services implicitly.
 - [x] Bound Wispr Flow dictation limits and request fields; reject unknown actions instead of silently treating them as status checks.
 - [ ] Finish the remaining mutation-endpoint audit, add targeted route tests, and validate confirmation flows manually before calling this phase complete.
