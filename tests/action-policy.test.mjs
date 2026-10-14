@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { authorizeAction, classifyAction } from '../src/lib/action-policy.ts';
+import { authorizeAction, classifyAction, runAuthorizedAction } from '../src/lib/action-policy.ts';
 
 test('classifies supported actions by risk', () => {
   assert.equal(classifyAction('health.read'), 'read-only');
@@ -36,4 +36,26 @@ test('fails closed for unregistered and destructive actions', () => {
   const destructive = authorizeAction('system.exec.mutation', 'system.exec.mutation');
   assert.equal(destructive.allowed, false);
   assert.equal(destructive.status, 403);
+});
+
+test('a denied action never invokes its execution handler', async () => {
+  let executions = 0;
+  const result = await runAuthorizedAction('gateway.restart', undefined, () => {
+    executions += 1;
+    return 'restarted';
+  });
+  assert.equal(result.allowed, false);
+  assert.equal(result.status, 428);
+  assert.equal(executions, 0);
+});
+
+test('an explicitly confirmed action invokes its handler once', async () => {
+  let executions = 0;
+  const result = await runAuthorizedAction('system.boost', 'system.boost', () => {
+    executions += 1;
+    return 'completed';
+  });
+  assert.equal(result.allowed, true);
+  assert.equal(result.result, 'completed');
+  assert.equal(executions, 1);
 });
