@@ -12,9 +12,9 @@ export async function GET(req: Request) {
   try {
     const status = await getHermesStatus();
     return NextResponse.json(status);
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: error.message || 'Failed to get Hermes status' },
+      { error: 'Failed to retrieve Hermes status' },
       { status: 500 }
     );
   }
