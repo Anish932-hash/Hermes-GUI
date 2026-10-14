@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { manageGateway, getGatewayLogs } from '@/lib/hermes';
 
 import { isLocalRequest } from '@/lib/local-request';
-import { authorizeAction } from '@/lib/action-policy';
+import { runAuthorizedAction } from '@/lib/action-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,13 +34,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid action. Must be start, stop, or restart' }, { status: 400 });
     }
 
-    const decision = authorizeAction(`gateway.${action}`, confirmation);
-    if (!decision.allowed) {
-      return NextResponse.json({ error: decision.reason, risk: decision.risk, action }, { status: decision.status });
+    const execution = await runAuthorizedAction(`gateway.${action}`, confirmation, () => manageGateway(action as any));
+    if (!execution.allowed) {
+      return NextResponse.json({ error: execution.reason, risk: execution.risk, action }, { status: execution.status });
     }
 
-    const result = await manageGateway(action as any);
-    return NextResponse.json(result);
+    return NextResponse.json(execution.result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
