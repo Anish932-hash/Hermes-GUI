@@ -6,7 +6,7 @@ import os from 'os';
 
 const execFileAsync = promisify(execFile);
 export type AppTarget = 'auto' | 'windows' | 'kali';
-export interface DiscoveredApp { name: string; target: 'windows' | 'kali'; source: string; desktopId?: string }
+export interface DiscoveredApp { name: string; target: 'windows' | 'kali'; source: string; desktopId?: string; desktopPath?: string }
 export interface AppLaunchIntent { name: string; target: AppTarget }
 export interface AppLaunchResult { handled: true; success: boolean; message: string; app?: DiscoveredApp; candidates?: DiscoveredApp[] }
 
@@ -61,7 +61,7 @@ export function listKaliApplications(): DiscoveredApp[] {
       const name = nameLine.slice(5).trim();
       if (!name || name.length > 160) continue;
       const desktopId = path.relative(root, file).split(path.sep).join('-').replace(/\.desktop$/i, '');
-      if (!apps.has(desktopId)) apps.set(desktopId, { name, target: 'kali', source: 'desktop-entry', desktopId });
+      if (!apps.has(desktopId)) apps.set(desktopId, { name, target: 'kali', source: 'desktop-entry', desktopId, desktopPath: file });
     } catch { /* Skip malformed desktop entries. */ }
   }
   return [...apps.values()].sort((a, b) => a.name.localeCompare(b.name)).slice(0, 800);
@@ -129,7 +129,7 @@ async function launchKali(app: DiscoveredApp): Promise<void> {
   try { await spawnDetached('gtk-launch', [app.desktopId]); }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    await spawnDetached('gio', ['launch', '/usr/share/applications/' + app.desktopId + '.desktop']);
+    await spawnDetached('gio', ['launch', app.desktopPath || ('/usr/share/applications/' + app.desktopId + '.desktop')]);
   }
 }
 
