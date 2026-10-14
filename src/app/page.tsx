@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import StartupAnimation from '@/components/os/startup-animation';
 import HUD from '@/components/os/hud';
 import ChatMode from '@/components/os/chat-mode';
+import SystemHealthWidget from '@/components/os/system-health-widget';
 import { cn } from '@/lib/utils';
 
 export type AppMode = 'hud' | 'chat';
@@ -174,6 +175,7 @@ export default function Home() {
       ) : (
         renderContent()
       )}
+      {!booting && <SystemHealthWidget />}
     </div>
   );
 }
