@@ -338,7 +338,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+  }
   const decision = authorizeAction('system.auto-setup', body.confirmation);
   if (!decision.allowed) {
     return NextResponse.json({ error: decision.reason, risk: decision.risk, action: 'system.auto-setup' }, { status: decision.status });
