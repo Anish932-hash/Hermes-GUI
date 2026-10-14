@@ -56,6 +56,7 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Sanitize app-launch process errors and diagnostic execution failures before returning them to the browser.
 - [x] Remove the unused generic shell-execution helper from the Hermes runtime module; supported process calls use argument-based APIs.
 - [x] Reject empty/no-op configuration updates, validate the streaming field type, and fail before writing when structured settings cannot be applied to the existing YAML.
+- [x] Extract structured-config preflight validation into a pure helper with regression tests for missing keys and temperature insertion.
 - [x] Reject malformed JSON in Windows bridge and Wispr Flow control routes instead of defaulting to an empty action payload.
 - [x] Distinguish successful process creation from verified service readiness in auto-setup results.
 - [x] Replace shell-interpolated SQLite, gateway-control, and process-telemetry commands with direct argument-based process APIs where applicable.
