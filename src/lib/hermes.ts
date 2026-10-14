@@ -886,11 +886,10 @@ Please check the spelling or provide an alternative landmark or city name.`,
       sessionId,
     };
   } catch (err: any) {
-    console.error('Hermes CLI Execution Error:', err);
-    const stderr = err.stderr || '';
-    const stdout = err.stdout || '';
+    // Do not log the raw process error: it may contain prompts, provider output, or secrets.
+    const stdout = typeof err?.stdout === 'string' ? err.stdout : '';
 
-    if (stdout && stdout.trim()) {
+    if (stdout.trim()) {
       const sessionMatch = stdout.match(/session_id:\s*([a-zA-Z0-9_-]+)/);
       return {
         text: stdout.replace(/session_id:\s*[a-zA-Z0-9_-]+/, '').trim(),
@@ -899,10 +898,8 @@ Please check the spelling or provide an alternative landmark or city name.`,
     }
 
     return {
-      text:
-        `Hermes notice: ${stderr || err.message || 'Execution error'}.\n` +
-        `Verify model credentials or configuration in ~/.hermes/config.yaml.`,
-      error: err.message,
+      text: 'Hermes could not complete the request. Verify model credentials or configuration in ~/.hermes/config.yaml.',
+      error: 'Hermes CLI execution failed',
     };
   }
 }
