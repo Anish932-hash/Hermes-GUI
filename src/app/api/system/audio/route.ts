@@ -233,12 +233,36 @@ export async function POST(req: Request) {
         '-n', '-t', 'pulseaudio', 'default', 'synth',
         String(duration), 'sine', String(freq), 'vol', '0.35',
       ], { stdio: 'ignore', detached: true });
-      tone.on('error', () => {});
+
+      // A ChildProcess object is not proof that the executable actually spawned.
+      // Wait for the spawn event and return a bounded, sanitized failure otherwise.
+      const spawnOutcome = await new Promise<'spawned' | 'failed' | 'timeout'>((resolve) => {
+        let settled = false;
+        const finish = (outcome: 'spawned' | 'failed' | 'timeout') => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(outcome);
+        };
+        const timer = setTimeout(() => {
+          try { tone.kill(); } catch {}
+          finish('timeout');
+        }, 2000);
+        tone.once('spawn', () => finish('spawned'));
+        tone.once('error', () => finish('failed'));
+      });
+
+      if (spawnOutcome !== 'spawned') {
+        return NextResponse.json(
+          { error: spawnOutcome === 'timeout' ? 'Audio process startup timed out' : 'Audio test tone could not be started' },
+          { status: 502 },
+        );
+      }
       tone.unref();
 
       return NextResponse.json({
         success: true,
-        message: `Dispatched ${duration}s test tone (${freq}Hz) to WSL PulseAudio default sink`,
+        message: `Started ${duration}s test tone (${freq}Hz) on the WSL PulseAudio default sink; playback completion is not verified.`,
       });
     }
 
