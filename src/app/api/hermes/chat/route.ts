@@ -62,11 +62,12 @@ export async function POST(req: NextRequest) {
       sessionId: result.sessionId,
       error: result.error,
     });
-  } catch (error: any) {
+  } catch {
+    // Avoid exposing internal paths, process output, or provider details to the browser.
     return NextResponse.json(
       {
-        error: error.message || 'Hermes invocation failed',
-        content: `Error interacting with Hermes in WSL: ${error.message}`,
+        error: 'Hermes invocation failed',
+        content: 'Unable to complete the Hermes request. Check local service diagnostics for details.',
       },
       { status: 500 }
     );
