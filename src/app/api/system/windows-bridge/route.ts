@@ -247,9 +247,9 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
     }
-  } catch (err: any) {
+  } catch {
     return NextResponse.json(
-      { error: err.message || 'Windows bridge operation failed' },
+      { error: 'Windows bridge operation failed' },
       { status: 500 }
     );
   }
