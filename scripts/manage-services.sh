@@ -117,7 +117,6 @@ wait_ready() {
   while [ ${elapsed} -lt ${timeout} ]; do
     if is_port_listening 3001 && is_port_listening 4173; then
       echo "[+] All services are ready! Studio: http://localhost:3001 | God's Eye: http://localhost:4173"
-      curl -s -H 'Host: localhost:3001' -X POST http://${BIND_HOST}:3001/api/system/auto-setup >/dev/null 2>&1 || true
       return 0
     fi
     sleep 1
