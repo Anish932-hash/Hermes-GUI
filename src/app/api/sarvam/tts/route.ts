@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (requestedSpeaker !== undefined && (typeof requestedSpeaker !== 'string' || requestedSpeaker.length > 64 || /[\\u0000-\\u001f\\u007f]/.test(requestedSpeaker))) {
       return NextResponse.json({ error: 'Invalid speaker identifier' }, { status: 400 });
     }
-    if (clientApiKey !== undefined && (typeof clientApiKey !== 'string' || clientApiKey.length > 512 || /[\\u0000-\\u001f\\u007f]/.test(clientApiKey))) {
+    if (clientApiKey != null && (typeof clientApiKey !== 'string' || clientApiKey.length > 512 || /[\\u0000-\\u001f\\u007f]/.test(clientApiKey))) {
       return NextResponse.json({ error: 'Invalid API key field' }, { status: 400 });
     }
 
