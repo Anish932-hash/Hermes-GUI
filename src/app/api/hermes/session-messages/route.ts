@@ -16,6 +16,9 @@ export async function GET(req: NextRequest) {
     if (!sessionId) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
     }
+    if (sessionId.length > 256 || !/^[a-zA-Z0-9_-]+$/.test(sessionId)) {
+      return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
+    }
 
     const messages = await getSessionMessages(sessionId);
     return NextResponse.json({ messages });
