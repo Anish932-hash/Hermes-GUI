@@ -179,8 +179,9 @@ export async function getHermesStatus(): Promise<HermesStatus> {
   try {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
-      const countRes = await execAsync(`sqlite3 -cmd ".timeout 2000" "${dbPath}" "SELECT count(*) FROM sessions;"`, {
+      const countRes = await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', dbPath, 'SELECT count(*) FROM sessions;'], {
         timeout: 4000,
+        maxBuffer: 8192,
       });
       sessionsCount = parseInt(countRes.stdout.trim(), 10) || sessionsCount;
     }
@@ -208,8 +209,9 @@ export async function getHermesSessions(): Promise<HermesSessionItem[]> {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
       const query = `SELECT id, COALESCE(title, id), datetime(last_activity_at, 'unixepoch'), COALESCE(cwd, '—'), message_count FROM sessions ORDER BY last_activity_at DESC LIMIT 35;`;
-      const { stdout } = await execAsync(`sqlite3 -cmd ".timeout 2000" -separator '|' "${dbPath}" "${query}"`, {
+      const { stdout } = await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', '-separator', '|', dbPath, query], {
         timeout: 5000,
+        maxBuffer: 1024 * 1024,
       });
 
       const lines = stdout.split('\n').filter(Boolean);
@@ -243,8 +245,9 @@ export async function getSessionMessages(sessionId: string): Promise<Array<{ rol
     if (fs.existsSync(dbPath)) {
       const safeId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '');
       const query = `SELECT role, content FROM messages WHERE session_id = '${safeId}' AND role IN ('user', 'assistant') ORDER BY id ASC LIMIT 100;`;
-      const { stdout } = await execAsync(`sqlite3 -cmd ".timeout 2000" -separator '|---MSG---|' "${dbPath}" "${query}"`, {
+      const { stdout } = await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', '-separator', '|---MSG---|', dbPath, query], {
         timeout: 5000,
+        maxBuffer: 4 * 1024 * 1024,
       });
 
       const rows = stdout.split('\n').filter(Boolean);
@@ -338,11 +341,11 @@ export async function getHermesSkills(): Promise<HermesSkillItem[]> {
 export async function manageGateway(action: 'start' | 'stop' | 'restart' | 'status'): Promise<{ success: boolean; message: string; output?: string }> {
   try {
     if (action === 'status') {
-      const { stdout } = await execAsync('systemctl --user status hermes-gateway --no-pager');
+      const { stdout } = await execFileAsync('systemctl', ['--user', 'status', 'hermes-gateway', '--no-pager'], { timeout: 5000, maxBuffer: 128 * 1024 });
       return { success: true, message: 'Status retrieved', output: stdout };
     }
 
-    const { stdout, stderr } = await execAsync(`systemctl --user ${action} hermes-gateway`);
+    const { stdout, stderr } = await execFileAsync('systemctl', ['--user', action, 'hermes-gateway'], { timeout: 10000, maxBuffer: 64 * 1024 });
     return {
       success: true,
       message: `Gateway ${action} executed successfully.`,
@@ -351,15 +354,15 @@ export async function manageGateway(action: 'start' | 'stop' | 'restart' | 'stat
   } catch (err: any) {
     return {
       success: false,
-      message: `Failed to ${action} gateway: ${err.message}`,
-      output: err.stderr || err.stdout,
+      message: `Failed to ${action} gateway. Check local diagnostics for details.`,
     };
   }
 }
 
 export async function getGatewayLogs(limit = 40): Promise<string> {
   try {
-    const { stdout } = await execAsync(`journalctl --user -u hermes-gateway -n ${limit} --no-pager`);
+    const safeLimit = Number.isInteger(limit) ? Math.min(200, Math.max(1, limit)) : 40;
+    const { stdout } = await execFileAsync('journalctl', ['--user', '-u', 'hermes-gateway', '-n', String(safeLimit), '--no-pager'], { timeout: 5000, maxBuffer: 512 * 1024 });
     return stdout;
   } catch {
     const agentLogPath = path.join(HERMES_HOME, 'logs', 'agent.log');
@@ -392,7 +395,7 @@ export async function performSystemBoost(): Promise<{
 
   // 1. Sync disk filesystem buffers
   try {
-    await execAsync('sync');
+    await execFileAsync('sync', [], { timeout: 5000 });
     details.push('Filesystem cache buffers flushed to disk via sync');
   } catch {}
 
@@ -422,8 +425,9 @@ export async function performSystemBoost(): Promise<{
   try {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
-      await execAsync(`sqlite3 -cmd ".timeout 2000" "${dbPath}" "PRAGMA wal_checkpoint(PASSIVE);"`, {
+      await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', dbPath, 'PRAGMA wal_checkpoint(PASSIVE);'], {
         timeout: 4000,
+        maxBuffer: 8192,
       });
       details.push('Compacted Hermes SQLite WAL memory journals');
     }
