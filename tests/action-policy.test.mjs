@@ -7,6 +7,9 @@ test('classifies supported actions by risk', () => {
   assert.equal(classifyAction('gateway.start'), 'routine');
   assert.equal(classifyAction('gateway.restart'), 'sensitive');
   assert.equal(classifyAction('system.boost'), 'sensitive');
+  assert.equal(classifyAction('system.auto-setup'), 'sensitive');
+  assert.equal(classifyAction('windows.restart-daemons'), 'sensitive');
+  assert.equal(classifyAction('config.raw-write'), 'sensitive');
   assert.equal(classifyAction('system.exec.mutation'), 'destructive');
 });
 
@@ -58,4 +61,12 @@ test('an explicitly confirmed action invokes its handler once', async () => {
   assert.equal(result.allowed, true);
   assert.equal(result.result, 'completed');
   assert.equal(executions, 1);
+});
+
+test('new mutating actions require exact-action confirmation', () => {
+  for (const action of ['system.auto-setup', 'windows.restart-daemons', 'config.raw-write', 'config.soul-write']) {
+    assert.equal(authorizeAction(action).allowed, false, action);
+    assert.equal(authorizeAction(action, action).allowed, true, action);
+    assert.equal(authorizeAction(action, 'some-other-action').allowed, false, action);
+  }
 });
