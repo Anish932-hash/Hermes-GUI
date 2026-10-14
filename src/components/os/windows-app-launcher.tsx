@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Search, RefreshCw, MonitorPlay, LoaderCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-type WindowsApp = { name: string; source: 'registered-app' | 'start-menu-shortcut' };
+type WindowsApp = { name: string; source: 'registered-app' | 'start-menu-shortcut' | 'app-path' };
 
 export function WindowsAppLauncher() {
   const { toast } = useToast();
@@ -87,13 +87,13 @@ export function WindowsAppLauncher() {
       </div>
       <div className="max-h-64 space-y-1 overflow-y-auto" aria-live="polite">
         {loading && apps.length === 0 ? (
-          <p className="p-3 text-xs text-muted-foreground">Discovering Start Menu applications…</p>
+          <p className="p-3 text-xs text-muted-foreground">Discovering installed Windows applications…</p>
         ) : visibleApps.length ? visibleApps.map((app) => (
           <div key={`${app.source}:${app.name}`} className="flex items-center gap-3 rounded-md border border-primary/10 bg-background/50 px-3 py-2">
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold">{app.name}</p>
               <p className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                {app.source === 'registered-app' ? 'Registered Windows app' : 'Start Menu shortcut'}
+                {app.source === 'registered-app' ? 'Registered Windows app' : app.source === 'app-path' ? 'Installed desktop app' : 'Start Menu shortcut'}
               </p>
             </div>
             <button type="button" onClick={() => void launch(app.name)} disabled={Boolean(launching) || loading} className="rounded border border-accent/40 bg-accent/10 px-3 py-1.5 text-[10px] font-bold text-accent hover:bg-accent/20 disabled:opacity-50">
@@ -102,12 +102,12 @@ export function WindowsAppLauncher() {
           </div>
         )) : (
           <p className="p-3 text-xs text-muted-foreground">
-            {query ? 'No matching apps. Try a shorter search.' : 'No apps discovered. Add a shortcut to the Windows Start Menu and refresh.'}
+            {query ? 'No matching apps. Try a shorter search.' : 'No apps discovered. Check Windows Start Menu shortcuts and registered applications, then refresh.'}
           </p>
         )}
       </div>
       <p className="text-[10px] leading-relaxed text-muted-foreground">
-        Launches registered apps or Start Menu shortcuts only. This panel does not accept shell commands or arbitrary executable paths.
+        Discovers registered apps, Start Menu shortcuts, and executable paths registered by Windows. It never accepts shell commands or arbitrary paths from the search box.
       </p>
     </section>
   );
