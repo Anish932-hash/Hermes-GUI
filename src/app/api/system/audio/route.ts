@@ -183,7 +183,7 @@ export async function GET(req: Request) {
   try {
     const sample = await samplePulseAudio(90);
     return NextResponse.json(sample);
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
       {
         active: false,
