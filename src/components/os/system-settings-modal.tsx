@@ -225,7 +225,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ onOpen
       if (res.ok) {
         toast({
           title: "Hyper-Optimization Complete",
-          description: `Observed ${data.freedMB ?? 0} MB RAM decrease. ${data.details?.join('; ') || 'System maintenance completed.'}`,
+          description: `${data.freedMB == null ? 'RAM change could not be measured. ' : `Observed ${data.freedMB} MB RAM decrease. `}${data.details?.join('; ') || 'System maintenance completed.'}`,
         });
       }
     } catch {
