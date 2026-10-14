@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { soundFx } from '@/lib/audio-synth';
+import { WindowsAppLauncher } from './windows-app-launcher';
 
 interface WindowsBridgeTelemetry {
   isWsl: boolean;
@@ -287,6 +288,8 @@ export function WindowsKaliBridgeModal({
               </button>
             </div>
           </div>
+
+          <WindowsAppLauncher />
 
           {/* Action Log Status */}
           {actionStatus && (
