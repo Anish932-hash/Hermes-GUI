@@ -15,7 +15,7 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Unified Windows/Kali app discovery and registered-app launching.
 - [x] Route text and voice app-launch requests through the same safe launcher.
 - [x] Add unit/security tests and CI checks.
-- [x] CI validation passes for the current branch commit.
+- [x] CI validation is configured and has passed on prior branch commits; verify the latest-head workflow before merge.
 - [ ] Manually validate app discovery and launch on the user's Windows + Kali WSL/WSLg setup.
 
 ## Phase 1 — Truthful system-health overview
