@@ -28,7 +28,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
     const { action, confirmation } = body;
     if (!['start', 'stop', 'restart'].includes(action)) {
       return NextResponse.json({ error: 'Invalid action. Must be start, stop, or restart' }, { status: 400 });
