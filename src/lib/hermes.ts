@@ -243,7 +243,8 @@ export async function getSessionMessages(sessionId: string): Promise<Array<{ rol
   try {
     const dbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(dbPath)) {
-      const safeId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (sessionId.length > 256 || !/^[a-zA-Z0-9_-]+$/.test(sessionId)) return [];
+      const safeId = sessionId;
       const query = `SELECT role, content FROM messages WHERE session_id = '${safeId}' AND role IN ('user', 'assistant') ORDER BY id ASC LIMIT 100;`;
       const { stdout } = await execFileAsync('sqlite3', ['-cmd', '.timeout 2000', '-separator', '|---MSG---|', dbPath, query], {
         timeout: 5000,
