@@ -12,9 +12,9 @@ export async function GET(req: Request) {
   try {
     const telemetry = getSystemTelemetry();
     return NextResponse.json(telemetry);
-  } catch (error: any) {
+  } catch {
     return NextResponse.json(
-      { error: error.message || 'Failed to gather system telemetry' },
+      { error: 'Failed to gather system telemetry' },
       { status: 500 }
     );
   }
