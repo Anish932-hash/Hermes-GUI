@@ -49,6 +49,11 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Validate Sarvam STT/TTS request fields and avoid returning raw provider error bodies to the client.
 - [x] Sanitize internal exception details from Hermes, audio, telemetry, and voice API error responses.
 - [x] Reject malformed audio JSON rather than silently falling back to the default test-tone action.
+- [x] Reject non-string audio action values and report test-tone startup failure instead of treating a returned ChildProcess object as proof of launch.
+- [x] Enforce the central app-launch policy for natural-language launches routed through Hermes chat, not only through the dedicated launcher APIs.
+- [x] Prevent natural-language maintenance shortcuts from bypassing the explicit system-boost confirmation workflow.
+- [x] Sanitize app-launch process errors and diagnostic execution failures before returning them to the browser.
+- [x] Reject empty/no-op configuration updates, validate the streaming field type, and fail before writing when structured settings cannot be applied to the existing YAML.
 - [x] Reject malformed JSON in Windows bridge and Wispr Flow control routes instead of defaulting to an empty action payload.
 - [x] Distinguish successful process creation from verified service readiness in auto-setup results.
 - [x] Replace shell-interpolated SQLite, gateway-control, and process-telemetry commands with direct argument-based process APIs where applicable.
