@@ -128,10 +128,9 @@ export async function POST(req: NextRequest) {
       languageCode: data.language_code || languageCode,
       model: model,
     });
-  } catch (error: any) {
-    console.error('Sarvam STT error:', error);
+  } catch {
     return NextResponse.json(
-      { error: error.message || 'Internal error in Sarvam STT route' },
+      { error: 'Speech transcription failed' },
       { status: 500 }
     );
   }
