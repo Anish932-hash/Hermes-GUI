@@ -138,8 +138,8 @@ async function performAppLaunch(intent: AppLaunchIntent): Promise<AppLaunchResul
   let kali: DiscoveredApp[] = [];
   if (intent.target !== 'kali') try { windows = await listWindowsApplications(); } catch { windows = []; }
   if (intent.target !== 'windows') kali = listKaliApplications();
-  const winMatch = intent.target !== 'kali' ? resolve(intent.name, windows) : {};
-  const kaliMatch = intent.target !== 'windows' ? resolve(intent.name, kali) : {};
+  const winMatch: { app?: DiscoveredApp; candidates?: DiscoveredApp[] } = intent.target !== 'kali' ? resolve(intent.name, windows) : {};
+  const kaliMatch: { app?: DiscoveredApp; candidates?: DiscoveredApp[] } = intent.target !== 'windows' ? resolve(intent.name, kali) : {};
   const app = winMatch.app || kaliMatch.app;
   const candidates = winMatch.candidates || kaliMatch.candidates;
   if (!app && candidates?.length) return {
