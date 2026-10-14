@@ -48,3 +48,20 @@ export function authorizeAction(
 
   return { allowed: true, risk };
 }
+
+/**
+ * Keep the policy check and execution boundary together so a denied action
+ * cannot accidentally fall through to its side-effecting handler.
+ */
+export async function runAuthorizedAction<T>(
+  action: string,
+  confirmation: unknown,
+  execute: () => Promise<T> | T,
+): Promise<
+  | { allowed: true; risk: ActionRisk; result: T }
+  | { allowed: false; risk: ActionRisk; status: 400 | 403 | 428; reason: string }
+> {
+  const decision = authorizeAction(action, confirmation);
+  if (!decision.allowed) return decision;
+  return { ...decision, result: await execute() };
+}
