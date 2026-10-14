@@ -3,10 +3,10 @@ import { getHermesStatus } from '@/lib/hermes';
 import { listKaliApplications } from '@/lib/app-launcher';
 import { isWisprProcessRunning } from '@/lib/wispr-flow';
 import { isLocalRequest } from '@/lib/local-request';
+import { appCatalogHealthState, gatewayHealthState, processHealthState, summarizeHealth, type HealthState } from '@/lib/system-health';
 
 export const dynamic = 'force-dynamic';
 
-type HealthState = 'online' | 'offline' | 'degraded' | 'unknown';
 type HealthItem = {
   id: string;
   label: string;
@@ -72,13 +72,7 @@ export async function GET(req: Request) {
 
   const hermesResult = checks[0];
   const hermes = hermesResult.status === 'fulfilled' ? hermesResult.value : null;
-  const gatewayState: HealthState = !hermes
-    ? 'unknown'
-    : hermes.gatewayState === 'running'
-      ? 'online'
-      : hermes.gatewayState === 'stopped'
-        ? 'offline'
-        : 'unknown';
+  const gatewayState = gatewayHealthState(hermes?.gatewayState);
 
   const godseyeResult = checks[1];
   const appsResult = checks[2];
@@ -112,9 +106,7 @@ export async function GET(req: Request) {
     item(
       'kali-apps',
       'Kali app discovery',
-      appsResult.status === 'fulfilled'
-        ? appsResult.value > 0 ? 'online' : 'degraded'
-        : 'unknown',
+      appsResult.status === 'fulfilled' ? appCatalogHealthState(appsResult.value) : appCatalogHealthState(null),
       appsResult.status === 'fulfilled'
         ? `${appsResult.value} Linux desktop applications discovered.`
         : 'Linux desktop application catalog could not be read.'
@@ -122,7 +114,7 @@ export async function GET(req: Request) {
     item(
       'wispr',
       'Wispr Flow',
-      wisprResult.status === 'fulfilled' && wisprResult.value ? 'online' : 'unknown',
+      processHealthState(wisprResult.status === 'fulfilled' ? wisprResult.value : undefined),
       wisprResult.status === 'fulfilled' && wisprResult.value
         ? 'Wispr Flow process detected on the Windows host.'
         : 'Wispr Flow process was not detected; installation state is not checked here.'
@@ -137,10 +129,7 @@ export async function GET(req: Request) {
     ),
   ];
 
-  const counts = services.reduce<Record<HealthState, number>>((total, service) => {
-    total[service.state] += 1;
-    return total;
-  }, { online: 0, offline: 0, degraded: 0, unknown: 0 });
+  const counts = summarizeHealth(services.map((service) => service.state));
 
   return NextResponse.json({ checkedAt, services, counts });
 }
