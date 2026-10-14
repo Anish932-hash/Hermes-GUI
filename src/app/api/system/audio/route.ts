@@ -268,9 +268,9 @@ export async function POST(req: Request) {
       return NextResponse.json({
         pulseServer: PULSE_SERVER,
         exists: fs.existsSync(PULSE_SERVER),
-        sinks: sinks.trim().split('\n').filter(Boolean),
-        sources: sources.trim().split('\n').filter(Boolean),
-        activeAudioClients: clients.trim().split('\n').filter(Boolean),
+        sinks,
+        sources,
+        activeAudioClients: clients,
       });
     }
 
