@@ -28,4 +28,7 @@ test('rejects mismatched or non-loopback Origins', () => {
 test('rejects malformed or missing Host headers', () => {
   assert.equal(isLocalRequest(request(undefined)), false);
   assert.equal(isLocalRequest(request('http://localhost:3001/path')), false);
+  assert.equal(isLocalRequest(request('localhost:3001/path')), false);
+  assert.equal(isLocalRequest(request('localhost:3001?x=1')), false);
+  assert.equal(isLocalRequest(request('user@localhost:3001')), false);
 });
