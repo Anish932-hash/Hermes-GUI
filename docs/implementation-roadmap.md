@@ -35,6 +35,7 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Remove automatic background remediation from the diagnostics polling path; auto-setup now runs only after an explicit confirmation.
 - [x] Replace interpolated shell execution for audio test tones with bounded input validation and direct argument spawning.
 - [x] Restrict the diagnostic command endpoint to exact read-only command/argument combinations; remove general file-content and Hermes command access.
+- [x] Add unit tests for approved diagnostic command shapes and rejection of arbitrary paths, flags, and commands.
 - [x] Bound geocoding query length and reject out-of-range coordinates from external geocoders.
 - [x] Validate Sarvam STT/TTS request fields and avoid returning raw provider error bodies to the client.
 - [x] Keep the God's Eye status GET endpoint read-only; status polling no longer starts services implicitly.
