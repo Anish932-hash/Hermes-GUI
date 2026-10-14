@@ -35,6 +35,7 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Remove automatic background remediation from the diagnostics polling path; auto-setup now runs only after an explicit confirmation.
 - [x] Replace interpolated shell execution for audio test tones with bounded input validation and direct argument spawning.
 - [x] Register audio test-tone and diagnostics actions in the central policy and validate POST bodies as JSON objects.
+- [x] Route both natural-language and exact-name Windows app launches through the central `apps.launch` policy.
 - [x] Reject malformed loopback Host authorities and add regression tests for path, query, and user-info forms.
 - [x] Restrict the diagnostic command endpoint to exact read-only command/argument combinations; remove general file-content and Hermes command access.
 - [x] Add unit tests for approved diagnostic command shapes and rejection of arbitrary paths, flags, and commands.
