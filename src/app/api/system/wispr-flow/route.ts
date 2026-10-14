@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         lastKnownId !== undefined &&
         (typeof lastKnownId !== 'string' ||
           lastKnownId.length > 256 ||
-          /[\\u0000-\\u001f\\u007f]/.test(lastKnownId))
+          /[\u0000-\u001f\u007f]/.test(lastKnownId))
       ) {
         return NextResponse.json({ error: 'Invalid lastKnownId' }, { status: 400 });
       }
