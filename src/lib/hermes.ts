@@ -1,4 +1,4 @@
-import { execFile, exec, execFileSync } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
@@ -6,7 +6,6 @@ import os from 'os';
 import { resolveLocationCoordinates, GODS_EYE_PRESETS, extractGodsEyeTarget } from './godseye';
 
 export const execFileAsync = promisify(execFile);
-export const execAsync = promisify(exec);
 
 export const HERMES_HOME = process.env.HERMES_HOME || path.join(os.homedir(), '.hermes');
 export const HERMES_BIN = process.env.HERMES_BIN || path.join(HERMES_HOME, 'hermes-agent', '.hermes', 'bin', 'hermes');
