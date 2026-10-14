@@ -135,8 +135,15 @@ export async function POST(req: NextRequest) {
     }
     const action = typeof body.action === 'string' ? body.action : '';
 
+    const requireUiPolicy = (policyAction: string) => {
+      const decision = authorizeAction(policyAction);
+      return decision.allowed ? null : NextResponse.json({ error: decision.reason, risk: decision.risk, action }, { status: decision.status });
+    };
+
     switch (action) {
       case 'open-mic-settings': {
+        const denied = requireUiPolicy('windows.open-mic-settings');
+        if (denied) return denied;
         // Direct jump to Windows Microphone Privacy Settings
         const psCmd = "Start-Process 'ms-settings:privacy-microphone' -WindowStyle Hidden";
         await launchOnWindows(psCmd);
@@ -148,6 +155,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'open-sound-settings': {
+        const denied = requireUiPolicy('windows.open-sound-settings');
+        if (denied) return denied;
         // Opens Classic Windows Sound Recording Control Panel
         const psCmd = "Start-Process 'control.exe' -ArgumentList 'mmsys.cpl,,1' -WindowStyle Hidden";
         await launchOnWindows(psCmd);
@@ -159,6 +168,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'launch-kali': {
+        const denied = requireUiPolicy('windows.launch-kali');
+        if (denied) return denied;
         // Spawns native Windows Terminal or WSL Kali console directly on Windows desktop
         const psCmd = "if (Get-Command wt.exe -ErrorAction SilentlyContinue) { Start-Process wt.exe -ArgumentList 'wsl.exe -d kali-linux ~' } else { Start-Process cmd.exe -ArgumentList '/c start `\"Kali Linux - Hermes Agent OS`\" wsl.exe -d kali-linux ~' }";
         await launchOnWindows(psCmd);
@@ -170,6 +181,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'open-explorer': {
+        const denied = requireUiPolicy('windows.open-explorer');
+        if (denied) return denied;
         const requestedPath = typeof body.path === 'string' ? body.path.trim() : '';
         if (requestedPath.length > 1024 || [...requestedPath].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
           return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
@@ -188,6 +201,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'launch-godseye': {
+        const denied = requireUiPolicy('windows.launch-godseye');
+        if (denied) return denied;
         // Launch God's Eye 3D Earth in dedicated app window
         const psCmd = "if (Test-Path 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe') { Start-Process 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe' -ArgumentList '--app=http://localhost:4173 --window-size=1440,900' } else { Start-Process 'http://localhost:4173' }";
         await launchOnWindows(psCmd);
@@ -199,6 +214,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'launch-studio-app': {
+        const denied = requireUiPolicy('windows.launch-studio-app');
+        if (denied) return denied;
         // Launch independent standalone desktop application (NO web browser)
         const psCmd = "$root = Join-Path $env:USERPROFILE 'Hermes-Agent-OS'; $app = Join-Path $root 'Hermes-Agent-OS.exe'; $electron = Join-Path $root 'node_modules\\electron\\dist\\electron.exe'; if (Test-Path $app) { Start-Process $app -WorkingDirectory $root -WindowStyle Hidden } elseif (Test-Path $electron) { Start-Process $electron -ArgumentList '.' -WorkingDirectory $root -WindowStyle Hidden } else { Start-Process 'http://127.0.0.1:3001' -WindowStyle Hidden }";
         await launchOnWindows(psCmd);
