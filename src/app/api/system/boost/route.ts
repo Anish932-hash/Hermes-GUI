@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       ...result,
       message: `Optimization completed. Observed memory decrease: ${result.freedMB} MB.`,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'System optimization failed' }, { status: 500 });
   }
 }
