@@ -100,7 +100,7 @@ Install the Electron dependency from the `windows/` directory with `npm install`
 | `/api/system/*` | Metrics, audio, system actions, setup, Windows bridge, Start Menu app discovery/launch, and Wispr Flow status |
 | `/api/godseye/*` | God's Eye service status and geocoding |
 
-Windows app discovery and launch are available through `GET /api/system/windows-apps` and `POST /api/system/windows-apps` with `{ "name": "Notepad" }`. The launcher matches registered Windows apps or exact Start Menu shortcut names; it does not accept arbitrary executable paths or shell commands. Apps without a Start Menu entry may need a shortcut added first.\n\nSee [the architecture blueprint](docs/blueprint.md) for the request flow, key source files, and service boundaries.
+Windows app discovery and launch are available through `GET /api/system/windows-apps` and `POST /api/system/windows-apps` with `{ "name": "Notepad" }`. The launcher discovers registered Windows apps, exact Start Menu shortcut names, and executables registered under Windows App Paths. It does not accept arbitrary executable paths or shell commands. Apps not discoverable through these Windows registration points may need a Start Menu shortcut added first.\n\nSee [the architecture blueprint](docs/blueprint.md) for the request flow, key source files, and service boundaries.
 
 ## Safety and network exposure
 
