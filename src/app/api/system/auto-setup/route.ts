@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spawn, exec, execFile } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
@@ -7,7 +7,6 @@ import os from 'os';
 import { isLocalRequest } from '@/lib/local-request';
 import { authorizeAction } from '@/lib/action-policy';
 
-const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 export const dynamic = 'force-dynamic';
@@ -87,10 +86,10 @@ async function detectAllSubsystems(): Promise<{
         ramUsedMB = Math.max(0, ramTotalMB - freeMB);
       }
     }
-    const { stdout: unameOut } = await execAsync('uname -r').catch(() => ({ stdout: '6.6.36.3-microsoft-standard-WSL2' }));
+    const { stdout: unameOut } = await execFileAsync('uname', ['-r'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: '6.6.36.3-microsoft-standard-WSL2' }));
     kernelVersion = unameOut.trim();
 
-    const { stdout: topOut } = await execAsync("top -bn1 | grep 'Cpu(s)'").catch(() => ({ stdout: '' }));
+    const { stdout: topOut } = await execFileAsync('top', ['-bn1'], { timeout: 2500, maxBuffer: 64 * 1024 }).catch(() => ({ stdout: '' }));
     const idleMatch = topOut.match(/(\d+\.\d+)\s*id/);
     if (idleMatch) {
       cpuUsage = Math.round(100 - parseFloat(idleMatch[1]));
@@ -126,7 +125,7 @@ async function detectAllSubsystems(): Promise<{
 
     if (!gatewayAlive) {
       // Check via pgrep
-      const { stdout: pgrepOut } = await execAsync('pgrep -f "hermes_cli.*gateway"').catch(() => ({ stdout: '' }));
+      const { stdout: pgrepOut } = await execFileAsync('pgrep', ['-f', 'hermes_cli.*gateway'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: '' }));
       const foundPid = parseInt(pgrepOut.trim().split('\n')[0], 10);
       if (foundPid && isPidAlive(foundPid)) {
         gatewayAlive = true;
@@ -183,7 +182,7 @@ async function detectAllSubsystems(): Promise<{
       dbSizeMB = +(stat.size / (1024 * 1024)).toFixed(2);
       walActive = fs.existsSync(path.join(HERMES_HOME, 'state.db-wal'));
 
-      const { stdout: countOut } = await execAsync(`sqlite3 "${dbPath}" "SELECT count(*) FROM sessions;"`).catch(() => ({ stdout: '0' }));
+      const { stdout: countOut } = await execFileAsync('sqlite3', [dbPath, 'SELECT count(*) FROM sessions;'], { timeout: 3000, maxBuffer: 8192 }).catch(() => ({ stdout: '0' }));
       sessionsCount = parseInt(countOut.trim(), 10) || 0;
     }
   } catch {}
@@ -241,7 +240,7 @@ async function detectAllSubsystems(): Promise<{
     pythonVersion = 'Python 3.14.7 (Hermes Sandboxed)';
   } else {
     try {
-      const { stdout: pyVerOut } = await execAsync('python3 --version').catch(() => ({ stdout: 'Python 3.12' }));
+      const { stdout: pyVerOut } = await execFileAsync('python3', ['--version'], { timeout: 2000, maxBuffer: 8192 }).catch(() => ({ stdout: 'Python 3.12' }));
       pythonVersion = pyVerOut.trim();
     } catch {}
   }
@@ -325,7 +324,7 @@ export async function GET(req: Request) {
     return NextResponse.json(diagnostics);
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || 'Auto-detection failed' },
+      { error: 'Auto-detection failed' },
       { status: 500 }
     );
   }
@@ -420,7 +419,7 @@ export async function POST(req: NextRequest) {
           actions.push({
             step: 'HERMES_AUTOREVIVE',
             status: 'WARNING',
-            message: `Could not revive Hermes Gateway: ${e.message}`,
+            message: 'Could not revive Hermes Gateway. Check local diagnostics for details.',
           });
         }
       }
@@ -446,7 +445,7 @@ export async function POST(req: NextRequest) {
         actions.push({
           step: 'SQLITE_WAL_CHECKPOINT',
           status: 'WARNING',
-          message: `WAL Checkpoint notice: ${e.message}`,
+          message: 'WAL checkpoint could not be completed. Check local diagnostics for details.',
         });
       }
     }
@@ -482,7 +481,7 @@ export async function POST(req: NextRequest) {
         actions.push({
           step: 'ENV_SYNC',
           status: 'WARNING',
-          message: `Env sync notice: ${e.message}`,
+          message: 'Environment sync failed. Check local diagnostics for details.',
         });
       }
     }
@@ -498,7 +497,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || 'Auto-setup encountered an error' },
+      { error: 'Auto-setup encountered an error' },
       { status: 500 }
     );
   }
