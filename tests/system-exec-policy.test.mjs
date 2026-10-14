@@ -5,7 +5,7 @@ import { isAllowedDiagnosticCommand } from '../src/lib/system-exec-policy.ts';
 test('allows approved read-only diagnostic command shapes', () => {
   const allowed = [
     ['uname'], ['uname', '-a'], ['uptime'], ['whoami'], ['id'], ['pwd'], ['date'], ['w'],
-    ['free', '-h'], ['df', '-h'], ['top', '-b', '-n', '1'], ['ps', 'aux'], ['ps', '-ef'],
+    ['free', '-h'], ['df', '-h'], ['top', '-b', '-n', '1'], ['ps', '-eo', 'pid,%cpu,%mem,comm'],
     ['ls'], ['ls', '-la'], ['netstat', '-an'], ['ss', '-tuln'],
     ['ip', 'addr', 'show'], ['ip', 'route', 'show'], ['systemctl', 'status', '--no-pager'],
     ['which', 'node'], ['which', 'hermes'], ['git', 'status'], ['git', 'branch', '--show-current'],
@@ -23,7 +23,7 @@ test('rejects unknown commands and empty arguments', () => {
 test('rejects arbitrary paths and extra arguments', () => {
   const rejected = [
     ['ls', 'some-path'], ['ls', '-la', 'some-path'], ['df', '-h', 'some-path'],
-    ['ps', 'aux', '--sort=cmd'], ['systemctl', 'status', 'service-name', '--no-pager'],
+    ['ps', 'aux'], ['ps', '-ef'], ['ps', '-eo', 'pid,%cpu,%mem,comm', '--sort=cmd'], ['systemctl', 'status', 'service-name', '--no-pager'],
     ['git', 'status', '--porcelain'], ['which', 'node', 'npm'], ['ip', 'addr', 'flush'],
     ['date', '--set=tomorrow'], ['top', '-b', '-n', '1', '-p', '1'],
   ];
