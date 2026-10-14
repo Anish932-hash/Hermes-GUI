@@ -355,7 +355,7 @@ export async function POST(req: NextRequest) {
     if (!cesiumOnline) {
       if (fs.existsSync(GODSEYE_DIR)) {
         try {
-          const child = spawn('npm', ['run', 'dev'], { cwd: GODSEYE_DIR, detached: true, stdio: 'ignore' });
+          const child = spawn('npm', ['run', 'dev', '--', '--host', LOCAL_BIND_HOST, '--port', '4173'], { cwd: GODSEYE_DIR, detached: true, stdio: 'ignore' });
           await new Promise<void>((resolve, reject) => {
             child.once('spawn', resolve);
             child.once('error', reject);
