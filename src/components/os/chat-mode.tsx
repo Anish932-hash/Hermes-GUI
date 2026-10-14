@@ -1033,6 +1033,7 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession, onSessionChange 
       }
 
       const answer = data.content || 'Hermes completed the task.';
+      const taskSucceeded = data.appAction?.success !== false;
 
       if (initialTaskAiMessageId) {
         setMessages((prev) =>
@@ -1043,8 +1044,8 @@ const ChatMode = ({ setMode, initialSessionId, onSelectSession, onSessionChange 
                   content: answer,
                   taskMeta: {
                     ...m.taskMeta!,
-                    status: 'SUCCESS',
-                    exitCode: '200 OK // 0',
+                    status: taskSucceeded ? 'SUCCESS' : 'ERROR',
+                    exitCode: taskSucceeded ? '200 OK // 0' : 'APP LAUNCH FAILED',
                     realOutput: answer,
                   },
                 }
