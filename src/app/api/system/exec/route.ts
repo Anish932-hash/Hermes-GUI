@@ -8,28 +8,7 @@ import { authorizeAction } from '@/lib/action-policy';
 const execFileAsync = promisify(execFile);
 
 // Conservative read-only diagnostic command prefixes; never expose a general-purpose shell
-const SAFE_PREFIXES = [
-  'uname',
-  'uptime',
-  'free',
-  'df',
-  'top',
-  'ps',
-  'w',
-  'whoami',
-  'id',
-  'ls',
-  'pwd',
-  'date',
-  'ip addr show',
-  'ip route show',
-  'netstat',
-  'ss',
-  'systemctl status',
-  'which',
-  'git status',
-  'git branch --show-current',
-];
+
 
 function parseCommand(command: string): string[] | null {
   // Reject shell operators and execute the parsed arguments directly with execFile.
