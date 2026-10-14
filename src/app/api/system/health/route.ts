@@ -22,7 +22,7 @@ function item(id: string, label: string, state: HealthState, message: string): H
 function isWslRuntime(): boolean {
   return process.platform === 'linux' && (
     process.env.WSL_DISTRO_NAME !== undefined ||
-    process.env.HERMES_WSL_DISTRO !== undefined
+    process.env.WSL_INTEROP !== undefined
   );
 }
 
@@ -122,7 +122,7 @@ export async function GET(req: Request) {
     item(
       'sarvam',
       'Sarvam cloud voice',
-      process.env.SARVAM_API_KEY ? 'online' : 'unknown',
+      'unknown',
       process.env.SARVAM_API_KEY
         ? 'A server-side API key is configured. Provider reachability has not been tested.'
         : 'No server-side key detected. A key saved in browser settings is not visible to this check.'
