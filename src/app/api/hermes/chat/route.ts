@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     if (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.length > 256 || !/^[A-Za-z0-9_-]+$/.test(sessionId))) {
       return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
     }
-    if (model !== undefined && (typeof model !== 'string' || model.length > 160 || [...model].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
+    if (model !== undefined && (typeof model !== 'string' || model.length > 160 || model.startsWith('-') || /\s/.test(model) || [...model].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
       return NextResponse.json({ error: 'Invalid model identifier' }, { status: 400 });
     }
     if (provider !== undefined && (typeof provider !== 'string' || provider.length > 64 || !/^[a-zA-Z0-9._-]+$/.test(provider))) {
