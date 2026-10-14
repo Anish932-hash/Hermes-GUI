@@ -208,7 +208,10 @@ export async function POST(req: Request) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
     }
-    const action = typeof body.action === 'string' ? body.action : 'test_tone';
+    if (body.action !== undefined && typeof body.action !== 'string') {
+      return NextResponse.json({ error: 'action must be a string' }, { status: 400 });
+    }
+    const action = body.action === undefined ? 'test_tone' : body.action;
 
     if (action === 'test_tone') {
       const decision = authorizeAction('audio.test-tone');
