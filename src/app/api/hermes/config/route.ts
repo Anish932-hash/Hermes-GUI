@@ -4,6 +4,7 @@ import path from 'path';
 import { HERMES_HOME } from '@/lib/hermes';
 import { isLocalRequest } from '@/lib/local-request';
 import { authorizeAction } from '@/lib/action-policy';
+import { validateStructuredConfigUpdates } from '@/lib/hermes-config-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -232,23 +233,10 @@ export async function POST(req: NextRequest) {
     if (fs.existsSync(configPath)) {
       let content = fs.readFileSync(configPath, 'utf8');
 
-      // Fail before writing if the existing YAML cannot represent a requested
-      // structured field; don't claim success for settings silently ignored.
-      const requiredPatterns: Array<[string, RegExp]> = [
-        ['model', /default:\s*['"]?[^'"\n#]+['"]?/],
-        ['provider', /provider:\s*['"]?[^'"\n#]+['"]?/],
-        ['maxTokens', /max_tokens:\s*[0-9]+/],
-        ['streaming', /streaming:\s*(true|false)/i],
-        ['reasoning', /reasoning:\s*['"]?[^'"\n#]+['"]?/],
-        ['maxSessions', /max_concurrent_sessions:\s*[0-9]+/],
-      ];
-      for (const [key, pattern] of requiredPatterns) {
-        if (Object.prototype.hasOwnProperty.call(body, key) && !pattern.test(content)) {
-          return NextResponse.json({ error: `Cannot update ${key}: its setting is missing from config.yaml` }, { status: 400 });
-        }
-      }
-      if (Object.prototype.hasOwnProperty.call(body, 'temperature') && !/temperature:\s*[0-9.]+/.test(content) && !/model:\n/.test(content)) {
-        return NextResponse.json({ error: 'Cannot update temperature: no model section exists in config.yaml' }, { status: 400 });
+      // Fail before writing if a requested setting cannot be applied.
+      const configUpdateError = validateStructuredConfigUpdates(content, body);
+      if (configUpdateError) {
+        return NextResponse.json({ error: configUpdateError }, { status: 400 });
       }
 
       if (body.model) {
