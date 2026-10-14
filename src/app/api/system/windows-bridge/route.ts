@@ -130,7 +130,10 @@ export async function POST(req: NextRequest) {
   }
   try {
     const body = await req.json().catch(() => ({}));
-    const action = body.action || '';
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
+    const action = typeof body.action === 'string' ? body.action : '';
 
     switch (action) {
       case 'open-mic-settings': {
@@ -168,7 +171,7 @@ export async function POST(req: NextRequest) {
 
       case 'open-explorer': {
         const requestedPath = typeof body.path === 'string' ? body.path.trim() : '';
-        if (requestedPath.length > 1024 || /[\\u0000-\\u001f]/.test(requestedPath)) {
+        if (requestedPath.length > 1024 || [...requestedPath].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
           return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
         }
         const targetPath = requestedPath || '';
