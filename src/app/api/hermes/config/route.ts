@@ -130,8 +130,8 @@ export async function GET(req: Request) {
         { id: 'auto', label: 'Auto-Detect from Credentials', keyConfigured: true },
       ],
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'The requested Hermes operation failed' }, { status: 500 });
   }
 }
 
@@ -271,7 +271,7 @@ export async function POST(req: NextRequest) {
       message: 'Hermes configurations saved and applied to ~/.hermes/config.yaml',
       updated: body,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'The requested Hermes operation failed' }, { status: 500 });
   }
 }
