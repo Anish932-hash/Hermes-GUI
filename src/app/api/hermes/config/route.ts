@@ -176,6 +176,9 @@ export async function POST(req: NextRequest) {
     if (body.soulPrompt !== undefined && typeof body.soulPrompt !== 'string') {
       return NextResponse.json({ error: 'soulPrompt must be a string' }, { status: 400 });
     }
+    if (typeof body.rawYaml === 'string' && typeof body.soulPrompt === 'string') {
+      return NextResponse.json({ error: 'Submit rawYaml or soulPrompt in a separate request' }, { status: 400 });
+    }
     if (typeof body.rawYaml === 'string' || typeof body.soulPrompt === 'string') {
       const action = typeof body.rawYaml === 'string' ? 'config.raw-write' : 'config.soul-write';
       const decision = authorizeAction(action, body.confirmation);
@@ -269,7 +272,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Hermes configurations saved and applied to ~/.hermes/config.yaml',
-      updated: body,
+      updated: {
+        model: body.model,
+        provider: body.provider,
+        temperature: body.temperature,
+        maxTokens: body.maxTokens,
+        streaming: body.streaming,
+        reasoning: body.reasoning,
+        maxSessions: body.maxSessions,
+        soulPromptUpdated: typeof body.soulPrompt === 'string',
+      },
     });
   } catch {
     return NextResponse.json({ error: 'The requested Hermes operation failed' }, { status: 500 });
