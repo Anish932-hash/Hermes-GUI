@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
   if (!query || !query.trim()) {
     return NextResponse.json({ error: 'Query parameter q is required', success: false }, { status: 400 });
   }
+  if (query.length > 200) {
+    return NextResponse.json({ error: 'Query parameter q must be 200 characters or fewer', success: false }, { status: 413 });
+  }
 
   const cleanQuery = cleanGeographicQuery(query);
   if (!cleanQuery) {
@@ -66,7 +69,7 @@ export async function GET(req: NextRequest) {
         const lat = parseFloat(item.lat);
         const lon = parseFloat(item.lon);
 
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        if (Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
           const type = (item.type || '').toLowerCase();
           const placeClass = (item.class || '').toLowerCase();
           const bbox = item.boundingbox; // [minLat, maxLat, minLon, maxLon]
@@ -155,7 +158,7 @@ export async function GET(req: NextRequest) {
       const feature = data?.features?.[0];
       if (feature?.geometry?.coordinates) {
         const [lon, lat] = feature.geometry.coordinates;
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        if (Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
           const props = feature.properties || {};
           const name = props.name || cleanQuery;
           const country = props.country || '';
