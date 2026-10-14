@@ -375,15 +375,15 @@ export async function getGatewayLogs(limit = 40): Promise<string> {
 }
 
 export async function performSystemBoost(): Promise<{
-  freedMB: number;
-  beforeRamMB: number;
-  afterRamMB: number;
+  freedMB: number | null;
+  beforeRamMB: number | null;
+  afterRamMB: number | null;
   details: string[];
 }> {
   const details: string[] = [];
 
   // Read initial memory
-  let beforeRamMB = 1000;
+  let beforeRamMB: number | null = null;
   try {
     const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
     const totalMatch = meminfo.match(/MemTotal:\s+(\d+)/);
@@ -434,7 +434,7 @@ export async function performSystemBoost(): Promise<{
   } catch {}
 
   // Read after memory
-  let afterRamMB = beforeRamMB;
+  let afterRamMB: number | null = null;
   try {
     const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
     const totalMatch = meminfo.match(/MemTotal:\s+(\d+)/);
@@ -446,7 +446,9 @@ export async function performSystemBoost(): Promise<{
 
   // Report only an observed decrease. sync and a WAL checkpoint do not guarantee
   // that Linux will release memory, so a minimum/fixed value is misleading.
-  const freedMB = Math.max(0, beforeRamMB - afterRamMB);
+  const freedMB = beforeRamMB !== null && afterRamMB !== null
+    ? Math.max(0, beforeRamMB - afterRamMB)
+    : null;
 
   return {
     freedMB,
