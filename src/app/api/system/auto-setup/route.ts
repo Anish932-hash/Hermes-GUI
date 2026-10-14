@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
@@ -7,7 +7,7 @@ import os from 'os';
 import { isLocalRequest } from '@/lib/local-request';
 import { authorizeAction } from '@/lib/action-policy';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export const dynamic = 'force-dynamic';
 
@@ -355,7 +355,9 @@ export async function POST(req: NextRequest) {
     if (!cesiumOnline) {
       if (fs.existsSync(GODSEYE_DIR)) {
         try {
-          exec('nohup npm run dev > /dev/null 2>&1 &', { cwd: GODSEYE_DIR });
+          const child = spawn('npm', ['run', 'dev'], { cwd: GODSEYE_DIR, detached: true, stdio: 'ignore' });
+          child.on('error', () => {});
+          child.unref();
           actions.push({
             step: 'CESIUM_AUTOSPAWN',
             status: 'SUCCESS',
@@ -394,10 +396,14 @@ export async function POST(req: NextRequest) {
       const cliBin = path.join(HERMES_HOME, 'hermes-agent', 'hermes_cli', 'main.py');
       if (fs.existsSync(pyBin) && fs.existsSync(cliBin)) {
         try {
-          exec(`nohup "${pyBin}" "${cliBin}" gateway run > "${HERMES_HOME}/gateway-auto.log" 2>&1 &`, {
+          const child = spawn(pyBin, [cliBin, 'gateway', 'run'], {
             cwd: HERMES_HOME,
             env: { ...process.env, HERMES_HOME },
+            detached: true,
+            stdio: 'ignore',
           });
+          child.on('error', () => {});
+          child.unref();
           actions.push({
             step: 'HERMES_AUTOREVIVE',
             status: 'SUCCESS',
@@ -423,7 +429,7 @@ export async function POST(req: NextRequest) {
     const stateDbPath = path.join(HERMES_HOME, 'state.db');
     if (fs.existsSync(stateDbPath)) {
       try {
-        await execAsync(`sqlite3 "${stateDbPath}" "PRAGMA wal_checkpoint(PASSIVE);"`, { timeout: 3000 });
+        await execFileAsync('sqlite3', [stateDbPath, 'PRAGMA wal_checkpoint(PASSIVE);'], { timeout: 3000 });
         actions.push({
           step: 'SQLITE_WAL_CHECKPOINT',
           status: 'SUCCESS',
