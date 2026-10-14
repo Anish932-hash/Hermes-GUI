@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { spawn, exec } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import fs from 'fs';
 import { promisify } from 'util';
 
 import { isLocalRequest } from '@/lib/local-request';
 import { authorizeAction } from '@/lib/action-policy';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export const dynamic = 'force-dynamic';
 
@@ -247,9 +247,23 @@ export async function POST(req: Request) {
       if (!decision.allowed) {
         return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
       }
-      const { stdout: sinks } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sinks 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
-      const { stdout: sources } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sources 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
-      const { stdout: clients } = await execAsync(`PULSE_SERVER=${PULSE_SERVER} pactl list short sink-inputs 2>/dev/null || echo "None"`).catch(() => ({ stdout: 'None' }));
+      const runPactl = async (kind: 'sinks' | 'sources' | 'sink-inputs') => {
+        try {
+          const { stdout } = await execFileAsync('pactl', ['list', 'short', kind], {
+            env: { ...process.env, PULSE_SERVER },
+            timeout: 2500,
+            maxBuffer: 64 * 1024,
+          });
+          return stdout.trim().split('\n').filter(Boolean);
+        } catch {
+          return ['Unavailable'];
+        }
+      };
+      const [sinks, sources, clients] = await Promise.all([
+        runPactl('sinks'),
+        runPactl('sources'),
+        runPactl('sink-inputs'),
+      ]);
 
       return NextResponse.json({
         pulseServer: PULSE_SERVER,
@@ -262,6 +276,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Audio request failed' }, { status: 500 });
   }
 }
