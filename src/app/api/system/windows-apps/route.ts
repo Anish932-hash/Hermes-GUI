@@ -111,7 +111,10 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (!name || name.length > 200 || /[\u0000-\u001f\u007f]/.test(name)) {
       return NextResponse.json(
