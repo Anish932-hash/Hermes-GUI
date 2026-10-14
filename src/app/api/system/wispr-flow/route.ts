@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
   try {
-    const body: unknown = await req.json().catch(() => ({}));
+    const body: unknown = await req.json().catch(() => null);
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return NextResponse.json({ error: 'Request body must be an object' }, { status: 400 });
     }
