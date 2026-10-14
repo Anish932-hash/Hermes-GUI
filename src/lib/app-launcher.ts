@@ -133,9 +133,7 @@ async function launchKali(app: DiscoveredApp): Promise<void> {
   }
 }
 
-export async function launchAppFromText(text: string): Promise<AppLaunchResult | null> {
-  const intent = parseAppLaunchIntent(text);
-  if (!intent) return null;
+async function performAppLaunch(intent: AppLaunchIntent): Promise<AppLaunchResult> {
   let windows: DiscoveredApp[] = [];
   let kali: DiscoveredApp[] = [];
   if (intent.target !== 'kali') try { windows = await listWindowsApplications(); } catch { windows = []; }
@@ -158,5 +156,28 @@ export async function launchAppFromText(text: string): Promise<AppLaunchResult |
     return { handled: true, success: true, app, message: 'Launch request sent to ' + app.name + ' on ' + (app.target === 'windows' ? 'Windows' : 'Kali Linux') + '.' };
   } catch (error) {
     return { handled: true, success: false, app, message: 'Found ' + app.name + ' on ' + app.target + ', but launch failed: ' + (error instanceof Error ? error.message : 'unknown error') };
+  }
+}
+
+
+const inFlightLaunches = new Map<string, Promise<AppLaunchResult>>();
+const recentLaunches = new Map<string, { at: number; result: AppLaunchResult }>();
+
+export async function launchAppFromText(text: string): Promise<AppLaunchResult | null> {
+  const intent = parseAppLaunchIntent(text);
+  if (!intent) return null;
+  const key = intent.target + ':' + norm(intent.name);
+  const recent = recentLaunches.get(key);
+  if (recent && Date.now() - recent.at < 2500 && recent.result.success) return recent.result;
+  const active = inFlightLaunches.get(key);
+  if (active) return active;
+  const operation = performAppLaunch(intent);
+  inFlightLaunches.set(key, operation);
+  try {
+    const result = await operation;
+    if (result.success) recentLaunches.set(key, { at: Date.now(), result });
+    return result;
+  } finally {
+    inFlightLaunches.delete(key);
   }
 }
