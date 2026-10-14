@@ -16,6 +16,10 @@ export function isLocalRequest(req: Request): boolean {
     return false;
   }
 
+  // A Host header is an authority, not a URL. Reject paths, credentials, query
+  // strings, and fragments rather than accepting a parsed localhost hostname.
+  if (requestUrl.pathname !== '/' || requestUrl.search || requestUrl.hash || requestUrl.username || requestUrl.password) return false;
+
   const requestHost = requestUrl.hostname.toLowerCase();
   if (!LOOPBACK_HOSTS.has(requestHost)) return false;
 
