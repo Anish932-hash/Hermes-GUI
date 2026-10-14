@@ -357,18 +357,21 @@ export async function POST(req: NextRequest) {
       if (fs.existsSync(GODSEYE_DIR)) {
         try {
           const child = spawn('npm', ['run', 'dev'], { cwd: GODSEYE_DIR, detached: true, stdio: 'ignore' });
-          child.on('error', () => {});
+          await new Promise<void>((resolve, reject) => {
+            child.once('spawn', resolve);
+            child.once('error', reject);
+          });
           child.unref();
           actions.push({
             step: 'CESIUM_AUTOSPAWN',
             status: 'SUCCESS',
-            message: "God's Eye 3D Earth Cesium server initiated in background on port 4173.",
+            message: "God's Eye server process launched; readiness has not yet been verified.",
           });
         } catch (e: any) {
           actions.push({
             step: 'CESIUM_AUTOSPAWN',
             status: 'WARNING',
-            message: `Could not start Cesium automatically: ${e.message}`,
+            message: 'Could not start the Cesium process. Check local diagnostics for details.',
           });
         }
       }
@@ -403,12 +406,15 @@ export async function POST(req: NextRequest) {
             detached: true,
             stdio: 'ignore',
           });
-          child.on('error', () => {});
+          await new Promise<void>((resolve, reject) => {
+            child.once('spawn', resolve);
+            child.once('error', reject);
+          });
           child.unref();
           actions.push({
             step: 'HERMES_AUTOREVIVE',
             status: 'SUCCESS',
-            message: 'Hermes Gateway daemon auto-spawned with sandboxed Python 3.14.',
+            message: 'Hermes Gateway process launched; gateway readiness has not yet been verified.',
           });
         } catch (e: any) {
           actions.push({
