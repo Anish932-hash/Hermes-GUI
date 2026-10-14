@@ -91,7 +91,7 @@ export function parseAppLaunchIntent(text: string): AppLaunchIntent | null {
   return { name, target };
 }
 
-function resolve(name: string, apps: DiscoveredApp[]) {
+function resolve(name: string, apps: DiscoveredApp[]): { app?: DiscoveredApp; candidates?: DiscoveredApp[] } {
   const terms = [norm(name), ...(aliases[norm(name)] || []).map(norm)];
   const exact = apps.filter((app) => terms.includes(norm(app.name)));
   if (exact.length === 1) return { app: exact[0] };
