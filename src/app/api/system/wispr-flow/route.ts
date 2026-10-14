@@ -34,11 +34,9 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(status);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Internal error querying Wispr Flow';
-    console.error('Error fetching Wispr Flow status:', message);
+  } catch {
     return NextResponse.json(
-      { installed: false, running: false, error: message },
+      { installed: false, running: false, error: 'Unable to query Wispr Flow status' },
       { status: 500 },
     );
   }
@@ -101,9 +99,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(await getWisprStatus());
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Wispr Flow action failed';
-    console.error('Wispr Flow action error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Wispr Flow action failed' }, { status: 500 });
   }
 }
