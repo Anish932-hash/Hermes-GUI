@@ -21,8 +21,8 @@ const SAFE_PREFIXES = [
   'ls',
   'pwd',
   'date',
-  'ip addr',
-  'ip route',
+  'ip addr show',
+  'ip route show',
   'netstat',
   'ss',
   'systemctl status',
@@ -68,6 +68,13 @@ function parseCommand(command: string): string[] | null {
 }
 
 function isAllowedCommand(args: string[]): boolean {
+  // Commands whose flags can change system state are deliberately constrained.
+  if (args[0] === 'date' && args.length !== 1) return false;
+  if (args[0] === 'ip' && !(
+    (args[1] === 'addr' && args[2] === 'show') ||
+    (args[1] === 'route' && args[2] === 'show')
+  )) return false;
+
   return SAFE_PREFIXES.some((prefix) => {
     const expected = prefix.split(' ');
     return expected.every((part, index) => args[index] === part);
