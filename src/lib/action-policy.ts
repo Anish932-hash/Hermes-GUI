@@ -7,6 +7,7 @@ export type ActionDecision =
 const RISK_BY_ACTION: Record<string, ActionRisk> = {
   'apps.list': 'read-only',
   'audio.test-tone': 'routine',
+  'audio.diagnostics': 'read-only',
   'health.read': 'read-only',
   'gateway.start': 'routine',
   'gateway.stop': 'sensitive',
