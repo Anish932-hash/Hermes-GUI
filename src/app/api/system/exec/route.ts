@@ -53,12 +53,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json().catch(() => ({}));
+    const body: unknown = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
     const decision = authorizeAction('system.exec.diagnostic');
     if (!decision.allowed) {
       return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
     }
-    const command = body?.command;
+    const command = (body as Record<string, unknown>).command;
     if (!command || typeof command !== 'string') {
       return NextResponse.json({ error: 'Command string is required' }, { status: 400 });
     }
@@ -126,11 +129,17 @@ export async function POST(req: Request) {
       exitCode: 0,
       executedAt: new Date().toISOString(),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    // A failed diagnostic may include partial process output or internal paths.
+    // Keep the browser response useful without echoing raw process errors.
+    const code = typeof err === 'object' && err !== null && 'code' in err
+      ? (err as { code?: unknown }).code
+      : undefined;
+    const exitCode = typeof code === 'number' && Number.isInteger(code) ? code : 1;
     return NextResponse.json({
-      stdout: err.stdout || '',
-      stderr: err.stderr || err.message || 'Execution error',
-      exitCode: err.code || 1,
+      stdout: '',
+      stderr: 'Diagnostic command failed or timed out. Check local service logs for details.',
+      exitCode,
       executedAt: new Date().toISOString(),
     });
   }
