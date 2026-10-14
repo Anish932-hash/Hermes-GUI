@@ -28,6 +28,7 @@ export function isLocalRequest(req: Request): boolean {
     try {
       const originUrl = new URL(origin);
       if (originUrl.protocol !== "http:" && originUrl.protocol !== "https:") return false;
+      if (originUrl.pathname !== '/' || originUrl.search || originUrl.hash || originUrl.username || originUrl.password) return false;
       if (!LOOPBACK_HOSTS.has(originUrl.hostname.toLowerCase())) return false;
       if (originUrl.host.toLowerCase() !== hostHeader.toLowerCase()) return false;
     } catch {
