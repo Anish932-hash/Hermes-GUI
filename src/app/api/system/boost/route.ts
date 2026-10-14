@@ -23,7 +23,9 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       ...result,
-      message: `Optimization completed. Observed memory decrease: ${result.freedMB} MB.`,
+      message: result.freedMB === null
+        ? 'Maintenance completed, but RAM change could not be measured.'
+        : `Maintenance completed. Observed memory decrease: ${result.freedMB} MB.`,
     });
   } catch {
     return NextResponse.json({ error: 'System optimization failed' }, { status: 500 });
