@@ -10,6 +10,9 @@ test('classifies supported actions by risk', () => {
   }
   assert.equal(classifyAction('audio.diagnostics'), 'read-only');
   assert.equal(classifyAction('audio.test-tone'), 'routine');
+  assert.equal(classifyAction('wispr.status'), 'read-only');
+  assert.equal(classifyAction('wispr.sync'), 'read-only');
+  for (const action of ['wispr.launch', 'wispr.ptt', 'wispr.trigger']) assert.equal(classifyAction(action), 'routine', action);
   assert.equal(classifyAction('gateway.start'), 'routine');
   assert.equal(classifyAction('gateway.restart'), 'sensitive');
   assert.equal(classifyAction('system.boost'), 'sensitive');
@@ -27,6 +30,9 @@ test('allows read-only and routine actions without confirmation', () => {
   }
   assert.deepEqual(authorizeAction('audio.diagnostics'), { allowed: true, risk: 'read-only' });
   assert.deepEqual(authorizeAction('audio.test-tone'), { allowed: true, risk: 'routine' });
+  assert.deepEqual(authorizeAction('wispr.status'), { allowed: true, risk: 'read-only' });
+  assert.deepEqual(authorizeAction('wispr.sync'), { allowed: true, risk: 'read-only' });
+  for (const action of ['wispr.launch', 'wispr.ptt', 'wispr.trigger']) assert.deepEqual(authorizeAction(action), { allowed: true, risk: 'routine' });
   assert.deepEqual(authorizeAction('gateway.start'), { allowed: true, risk: 'routine' });
 });
 
