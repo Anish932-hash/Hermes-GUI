@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { performSystemBoost } from '@/lib/hermes';
 
 import { isLocalRequest } from '@/lib/local-request';
-import { authorizeAction } from '@/lib/action-policy';
+import { runAuthorizedAction } from '@/lib/action-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,12 +12,11 @@ export async function POST(req: Request) {
   }
   try {
     const body = await req.json().catch(() => ({}));
-    const decision = authorizeAction('system.boost', body.confirmation);
-    if (!decision.allowed) {
-      return NextResponse.json({ error: decision.reason, risk: decision.risk, action: 'system.boost' }, { status: decision.status });
+    const execution = await runAuthorizedAction('system.boost', body.confirmation, () => performSystemBoost());
+    if (!execution.allowed) {
+      return NextResponse.json({ error: execution.reason, risk: execution.risk, action: 'system.boost' }, { status: execution.status });
     }
-
-    const result = await performSystemBoost();
+    const result = execution.result;
     return NextResponse.json({
       success: true,
       ...result,
