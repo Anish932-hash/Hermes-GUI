@@ -130,7 +130,7 @@ export async function POST(req: Request) {
     if (
       !args ||
       args.length > 12 ||
-      args.some((arg) => arg.length > 256 || /[\\u0000-\\u001f\\u007f]/.test(arg)) ||
+      args.some((arg) => arg.length > 256 || /[\u0000-\u001f\u007f]/.test(arg)) ||
       args.some((arg) => /^--?(?:output|exec|upload-pack|receive-pack|config|work-tree|git-dir)(?:=|$)/i.test(arg)) ||
       !isAllowedCommand(args)
     ) {
