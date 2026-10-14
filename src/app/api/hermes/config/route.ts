@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { HERMES_HOME, execAsync } from '@/lib/hermes';
+import { HERMES_HOME } from '@/lib/hermes';
 import { isLocalRequest } from '@/lib/local-request';
 import { authorizeAction } from '@/lib/action-policy';
 
