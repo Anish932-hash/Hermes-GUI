@@ -1,4 +1,4 @@
-import { execFile, exec, execSync } from 'child_process';
+import { execFile, exec, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
@@ -1100,11 +1100,12 @@ export function getSystemTelemetry(): SystemTelemetry {
   // 9. Real Top Processes via live ps table
   const topProcesses: Array<ProcessInfo> = [];
   try {
-    const psOut = execSync('ps -eo pid,%cpu,%mem,comm --sort=-%cpu | head -n 14', {
+    const psOut = execFileSync('ps', ['-eo', 'pid,%cpu,%mem,comm', '--sort=-%cpu'], {
       encoding: 'utf8',
       timeout: 1000,
+      maxBuffer: 1024 * 1024,
     });
-    const lines = psOut.trim().split('\n').slice(1);
+    const lines = psOut.trim().split('\n').slice(1, 14);
     for (const line of lines) {
       const parts = line.trim().split(/\s+/);
       if (parts.length >= 4) {
