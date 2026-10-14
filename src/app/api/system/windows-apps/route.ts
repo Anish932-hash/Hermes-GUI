@@ -76,7 +76,8 @@ foreach ($registryRoot in $appPathRoots) {
   if (Test-Path -LiteralPath $registryRoot) {
     Get-ChildItem -LiteralPath $registryRoot -ErrorAction SilentlyContinue | ForEach-Object {
       $exeName = [IO.Path]::GetFileNameWithoutExtension($_.PSChildName)
-      $exePath = (Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue).'(default)'
+      $registryKey = Get-Item -LiteralPath $_.PSPath -ErrorAction SilentlyContinue
+      $exePath = if ($registryKey) { $registryKey.GetValue('') }
       if ($exeName -and $exePath -and (Test-Path -LiteralPath $exePath -PathType Leaf) -and -not $items.ContainsKey($exeName)) {
         $items[$exeName] = @{ name = $exeName; source = 'app-path'; appId = '' }
       }
@@ -139,7 +140,8 @@ foreach ($registryRoot in $appPathRoots) {
     $appPathMatches += Get-ChildItem -LiteralPath $registryRoot -ErrorAction SilentlyContinue | Where-Object {
       [IO.Path]::GetFileNameWithoutExtension($_.PSChildName) -ieq $name
     } | ForEach-Object {
-      $exePath = (Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue).'(default)'
+      $registryKey = Get-Item -LiteralPath $_.PSPath -ErrorAction SilentlyContinue
+      $exePath = if ($registryKey) { $registryKey.GetValue('') }
       if ($exePath -and (Test-Path -LiteralPath $exePath -PathType Leaf)) { $exePath }
     }
   }
