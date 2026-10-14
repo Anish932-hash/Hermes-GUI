@@ -11,11 +11,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
   }
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+    }
     const { message, sessionId, model, provider, enableTools } = body;
 
-    if (!message || typeof message !== 'string') {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    if (typeof message !== 'string' || !message.trim() || message.length > 20000) {
+      return NextResponse.json({ error: 'Message must contain 1–20000 characters' }, { status: 400 });
+    }
+    if (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.length > 256 || [...sessionId].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
+      return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
+    }
+    if (model !== undefined && (typeof model !== 'string' || model.length > 160 || [...model].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
+      return NextResponse.json({ error: 'Invalid model identifier' }, { status: 400 });
+    }
+    if (provider !== undefined && (typeof provider !== 'string' || provider.length > 64 || !/^[a-zA-Z0-9._-]+$/.test(provider))) {
+      return NextResponse.json({ error: 'Invalid provider identifier' }, { status: 400 });
+    }
+    if (enableTools !== undefined && typeof enableTools !== 'boolean') {
+      return NextResponse.json({ error: 'enableTools must be a boolean' }, { status: 400 });
     }
 
     // Resolve direct app-launch requests before handing ordinary conversation to Hermes.
