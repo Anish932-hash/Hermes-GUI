@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { isLocalRequest } from '@/lib/local-request';
+import { authorizeAction } from '@/lib/action-policy';
 
 const execFileAsync = promisify(execFile);
 
@@ -117,6 +118,11 @@ export async function POST(req: Request) {
         { error: 'Provide an application name between 1 and 200 characters.' },
         { status: 400 },
       );
+    }
+
+    const decision = authorizeAction('apps.launch');
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.reason, risk: decision.risk }, { status: decision.status });
     }
 
     const encodedName = Buffer.from(name, 'utf8').toString('base64');
