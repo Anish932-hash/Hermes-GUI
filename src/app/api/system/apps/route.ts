@@ -20,7 +20,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   if (!isLocalRequest(req)) return NextResponse.json({ error: 'Local requests only' }, { status: 403 });
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'A JSON object is required' }, { status: 400 });
+  }
   const command = typeof body.command === 'string' ? body.command : '';
   if (!command || command.length > 500) {
     return NextResponse.json({ error: 'Provide a launch command up to 500 characters.' }, { status: 400 });
