@@ -59,6 +59,8 @@ This roadmap is intentionally incremental. Each phase should be implemented, rev
 - [x] Extract structured-config preflight validation into a pure helper with regression tests for missing keys and temperature insertion.
 - [x] Reject malformed JSON in Windows bridge and Wispr Flow control routes instead of defaulting to an empty action payload.
 - [x] Distinguish successful process creation from verified service readiness in auto-setup results.
+- [x] Remove fabricated hardware/model/runtime/skills fallbacks and arbitrary health scores from the legacy auto-setup diagnostics payload; unknown observations stay unknown.
+- [x] Stop returning raw gateway service output and journal logs from the browser-facing status endpoint.
 - [x] Replace shell-interpolated SQLite, gateway-control, and process-telemetry commands with direct argument-based process APIs where applicable.
 - [x] Sanitize internal exception details from Windows app launch/discovery, Windows bridge, Wispr Flow, audio diagnostics, system optimization, auto-setup, and Hermes CLI failure responses; avoid logging raw Hermes process errors that may contain prompts or secrets.
 - [x] Preserve the WSL interface binding when auto-setup launches the Cesium development server.
